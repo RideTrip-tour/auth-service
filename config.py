@@ -2,11 +2,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    jwt_secret: str
-    jwt_algorithm: str
+    jwt_secret: str = "secret"
+    jwt_algorithm: str = "HS256"
     redis_url: str = "redis://127.0.0.1:6379"
     redis_ttl: int = 300  # время жизни кеша по умолчанию
-    db_url: str
+    db_name: str = "rtt"
+    db_host: str = "127.0.0.1"
+    db_port: int = 5432
+    db_user: str = "platform"
+    db_pass: str = "12345"
+    db_driver: str = "postgresql+asyncpg"
     access_token_expire_min: int = 60
 
     model_config = SettingsConfigDict(

@@ -13,13 +13,16 @@ if config.config_file_name is not None:
 
 from app.db.base import Base
 from app.db.models import *
-from config import settings
+from config import settings as se
 
 target_metadata = Base.metadata
 
-# Alembic не умеет работать с синхронными движками
-config.set_main_option("sqlalchemy.url", settings.db_url.replace("asyncpg", "psycopg2"))
 
+# Alembic не умеет работать с синхронными движками
+config.set_main_option(
+    "sqlalchemy.url", 
+    f'postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}'
+    )
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
