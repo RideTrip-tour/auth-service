@@ -1,17 +1,22 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
-from sqlalchemy.ext.declarative import declarative_base
+from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
+from sqlalchemy import ForeignKey, Integer
+from sqlalchemy.orm import declared_attr, Mapped, mapped_column, relationship
 
-Base = declarative_base()
+from app.db.base import Base
 
 
-class User(Base):
-    __tablename__ = "users"
+class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[int], Base):
+    id: Mapped[int] = mapped_column(primary_key=True)
 
-    id = Column(Integer, primary_key=True, index=True)
-    vk_id = Column(Integer, unique=True, index=True)
-    google_id = Column(Integer, unique=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    @declared_attr
+    def user_id(cls) -> Mapped[int]:
+        return mapped_column(
+            Integer, ForeignKey("user.id", ondelete="cascade"), nullable=False
+        )
+
+
+class User(SQLAlchemyBaseUserTable[int], Base):
+    id: Mapped[int] = mapped_column(primary_key=True)
+    oauth_accounts: Mapped[list[OAuthAccount]] = relationship(
+        "OAuthAccount", lazy="joined"
+    )

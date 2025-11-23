@@ -1,6 +1,15 @@
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from fastapi import Depends
 
+from fastapi_users.db import (
+    SQLAlchemyBaseOAuthAccountTableUUID,
+    SQLAlchemyBaseUserTableUUID,
+    SQLAlchemyUserDatabase,
+)
+
+from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.db.models import OAuthAccount, User
 from config import settings
 
 db_url = URL.create(
@@ -18,6 +27,10 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_db():
+async def get_async_session():
     async with AsyncSessionLocal() as session:
         yield session
+
+
+async def get_user_db(session: AsyncSession = Depends(get_async_session)):
+    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)

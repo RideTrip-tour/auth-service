@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     db_user: str = "platform"
     db_pass: str = "12345"
     db_driver: str = "postgresql+asyncpg"
-    access_token_expire_min: int = 60
+    access_token_expire_sec: int = 60 * 60 * 24 * 7
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True
