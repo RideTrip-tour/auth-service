@@ -12,13 +12,6 @@
 *   Управление пользователями (CRUD операции).
 *   Защищенные эндпоинты для аутентифицированных и суперпользователей.
 
-## 🛠️ Используемые технологии
-
-*   **Бэкенд**: Python 3.10+, [FastAPI](https://fastapi.tiangolo.com/)
-*   **Аутентификация**: [FastAPI Users](https://fastapi-users.github.io/fastapi-users/)
-*   **База данных**: PostgreSQL (с использованием [SQLAlchemy](https://www.sqlalchemy.org/) и [AsyncPG](https://github.com/MagicStack/asyncpg))
-*   **Миграции**: [Alembic](https://alembic.sqlalchemy.org/en/latest/)
-*   **Контейнеризация**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 
 ## 🚀 Локальный запуск
 
