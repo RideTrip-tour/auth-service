@@ -9,7 +9,11 @@ from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
 
-app = FastAPI()
+app = FastAPI(
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    )
 
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/auth", tags=["auth"]
