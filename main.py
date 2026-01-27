@@ -16,26 +16,26 @@ app = FastAPI(
     )
 
 app.include_router(
-    fastapi_users.get_auth_router(auth_backend), prefix="/auth", tags=["auth"]
+    fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"]
 )
 app.include_router(
     fastapi_users.get_register_router(UserRead, UserCreate),
-    prefix="/auth",
+    prefix="/api/auth",
     tags=["auth"],
 )
 app.include_router(
     fastapi_users.get_reset_password_router(),
-    prefix="/auth",
+    prefix="/api/auth",
     tags=["auth"],
 )
 app.include_router(
     fastapi_users.get_verify_router(UserRead),
-    prefix="/auth",
+    prefix="/api/auth",
     tags=["auth"],
 )
 app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/users",
+    prefix="/api/users",
     tags=["users"],
 )
 app.include_router(
@@ -46,6 +46,6 @@ app.include_router(
         associate_by_email=True,
         is_verified_by_default=True,
     ),
-    prefix="/auth/google",
+    prefix="/api/auth/google",
     tags=["auth"],
 )
