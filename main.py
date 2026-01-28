@@ -10,9 +10,9 @@ from config import settings
 logging.config.dictConfig(LOGGING_CONFIG)
 
 app = FastAPI(
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/api/auth/docs",
+    redoc_url="/api/auth/redoc",
+    openapi_url="/api/auth/openapi.json",
     )
 
 app.include_router(
