@@ -1,6 +1,7 @@
-from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
+from fastapi_users.db import (SQLAlchemyBaseOAuthAccountTable,
+                              SQLAlchemyBaseUserTable)
 from sqlalchemy import ForeignKey, Integer
-from sqlalchemy.orm import declared_attr, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from app.db.base import Base
 
