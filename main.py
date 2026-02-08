@@ -2,8 +2,8 @@ import logging.config
 
 from fastapi import FastAPI
 
+from app.schemas.users import UserCreate, UserRead
 from app.services.users import auth_backend, fastapi_users, google_oauth_client
-from app.schemas.users import UserCreate, UserRead, UserUpdate
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
@@ -13,7 +13,7 @@ app = FastAPI(
     docs_url="/api/auth/docs",
     redoc_url="/api/auth/redoc",
     openapi_url="/api/auth/openapi.json",
-    )
+)
 
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"]
@@ -33,11 +33,7 @@ app.include_router(
     prefix="/api/auth",
     tags=["auth"],
 )
-app.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/api/users",
-    tags=["users"],
-)
+
 app.include_router(
     fastapi_users.get_oauth_router(
         google_oauth_client,
