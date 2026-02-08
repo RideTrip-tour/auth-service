@@ -21,6 +21,11 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "propagate": False,
         },
+        "email": {  # логгер для сервиса отправки писем
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "uvicorn": {  # включаем логи uvicorn
             "handlers": ["console"],
             "level": "INFO",
