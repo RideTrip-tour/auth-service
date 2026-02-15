@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -13,15 +16,21 @@ if config.config_file_name is not None:
 
 from app.db.base import Base
 from app.db.models import *
-from config import settings as se
 
 target_metadata = Base.metadata
 
+load_dotenv(".env")
+
+db_host: str = os.getenv("DB_HOST", "postgres")
+db_port: int = int(os.getenv("DB_PORT", "5432"))
+db_name: str = os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "mydb"))
+db_user: str = os.getenv("DB_USER", os.getenv("POSTGRES_USER", "user"))
+db_pass: str = os.getenv("DB_PASS", os.getenv("POSTGRES_PASSWORD", "password123"))
 
 # Alembic не умеет работать с синхронными движками
 config.set_main_option(
     "sqlalchemy.url", 
-    f'postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}'
+    f'postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}'
     )
 
 def run_migrations_offline() -> None:
