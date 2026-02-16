@@ -2,52 +2,64 @@ import os
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv(".env")
-
 
 class Settings(BaseSettings):
-    jwt_secret: str = os.getenv("JWT_SECRET", "secret")
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
-    gateway_name: str = os.getenv("GATEWAY_NAME", "Gate")
+    # =========================
+    # Security
+    # =========================
+    jwt_secret: str = "secret"
+    jwt_algorithm: str = "HS256"
+    gateway_name: str = "Gate"
+    debug: bool = False
 
-    debug: bool = os.getenv("DEBUG", "false").lower() == "true"
-
+    # =========================
     # Redis
-    redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379")
-    redis_ttl: int = 300  # время жизни кеша по умолчанию
+    # =========================
+    redis_url: str = "redis://redis:6379"
+    redis_ttl: int = 300
 
+    # =========================
     # Database
-    db_host: str = os.getenv("DB_HOST", "postgres")
-    db_port: int = int(os.getenv("DB_PORT", "5432"))
-    db_name: str = os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "mydb"))
-    db_user: str = os.getenv("DB_USER", os.getenv("POSTGRES_USER", "user"))
-    db_pass: str = os.getenv("DB_PASS", os.getenv("POSTGRES_PASSWORD", "password123"))
+    # =========================
+    db_host: str = "postgres"
+    db_port: int = 5432
+    db_name: str = "mydb"
+    db_user: str = "user"
+    db_pass: str = "password123"
     db_driver: str = "postgresql+asyncpg"
 
+    # =========================
     # Email
-    mail_server: str = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-    mail_port: int = int(os.getenv("MAIL_PORT", "587"))
-    mail_username: str = os.getenv("MAIL_USERNAME", "")
-    mail_password: str = os.getenv("MAIL_PASSWORD", "")
-    mail_from: str = os.getenv("MAIL_FROM", "")
-    mail_from_name: str = os.getenv("MAIL_FROM_NAME", "Trip Constructor")
-    mail_starttls: bool = os.getenv("MAIL_STARTTLS", "true").lower() == "true"
-    mail_ssl_tls: bool = os.getenv("MAIL_SSL_TLS", "false").lower() == "true"
+    # =========================
+    mail_server: str = "smtp.gmail.com"
+    mail_port: int = 587
+    mail_username: str = ""
+    mail_password: str = ""
+    mail_from: str = ""
+    mail_from_name: str = "Trip Constructor"
+    mail_starttls: bool = True
+    mail_ssl_tls: bool = False
 
-    # Register
+    # =========================
+    # Auth
+    # =========================
     access_token_expire_sec: int = 60 * 15
     refresh_token_expire_sec: int = 60 * 60 * 24 * 7
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
-    origin: str = os.getenv("ORIGIN", "http://trip.com")
-    lk_path: str = os.getenv("LK_PATH", "/users/me/")
 
-    model_config = SettingsConfigDict(
-        extra="ignore",
-    )
+    origin: str = "http://trip.com"
+    lk_path: str = "/users/me/"
 
     refresh_token_path: str = "/api/auth/refresh"
     refresh_token_name: str = "refresh_token"
 
-
+    # =========================
+    # Config
+    # =========================
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 settings = Settings()

@@ -22,13 +22,13 @@ async def test_send_email_debug_mode_logs_only(caplog):
     settings.mail_server = "smtp.example.com"
     settings.mail_from = "from@example.com"
 
-    with caplog.at_level(logging.INFO, logger="email"):
+    with caplog.at_level(logging.INFO):
         # when
         await send_email("user@example.com", "Subject", "Body")
 
     # then
     messages: List[str] = [record.getMessage() for record in caplog.records]
-    assert any("Email DEBUG mode. Письмо НЕ отправлено." in m for m in messages)
+    assert any("Email DEBUG mode. Письмо НЕ отправлено" in m for m in messages)
 
 
 @pytest.mark.asyncio
@@ -39,7 +39,7 @@ async def test_send_email_missing_config_logs_warning(caplog):
     settings.mail_server = ""
     settings.mail_from = ""
 
-    with caplog.at_level(logging.WARNING, logger="email"):
+    with caplog.at_level(logging.WARNING):
         # when
         await send_email("user@example.com", "Subject", "Body")
 

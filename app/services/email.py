@@ -37,7 +37,6 @@ async def send_email(
             subject,
             body,
         )
-        logger.error("Зашли в отправку почты")
         return
 
     # Проверяем, что базовые настройки почты заданы
