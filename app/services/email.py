@@ -6,7 +6,7 @@ from pydantic import EmailStr
 
 from config import settings
 
-logger = logging.getLogger("email")
+logger = logging.getLogger(__name__)
 
 
 async def send_email(
@@ -37,7 +37,6 @@ async def send_email(
             subject,
             body,
         )
-        logger.error("Зашли в отправку почты")
         return
 
     # Проверяем, что базовые настройки почты заданы
