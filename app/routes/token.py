@@ -79,7 +79,7 @@ async def refresh_token(
         new_refresh_token = RefreshToken.create(db_token.user_id)
         session.add(new_refresh_token)
 
-    access_token = get_strategy().write_token(db_token.user)
+    access_token = await get_strategy().write_token(db_token.user)
 
     return await cookie_transport.get_login_response(
         access_token, new_refresh_token.token
