@@ -6,7 +6,7 @@ from pydantic import EmailStr
 
 from config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("email")
 
 
 async def send_email(
