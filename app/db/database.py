@@ -1,8 +1,6 @@
 from fastapi import Depends
 
 from fastapi_users.db import (
-    SQLAlchemyBaseOAuthAccountTableUUID,
-    SQLAlchemyBaseUserTableUUID,
     SQLAlchemyUserDatabase,
 )
 
