@@ -1,6 +1,8 @@
 import os
-
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+load_dotenv(".env")
 
 
 class Settings(BaseSettings):
@@ -33,7 +35,8 @@ class Settings(BaseSettings):
     mail_ssl_tls: bool = os.getenv("MAIL_SSL_TLS", "false").lower() == "true"
 
     # Register
-    access_token_expire_sec: int = 60 * 60 * 24 * 7
+    access_token_expire_sec: int = 60 * 15
+    refresh_token_expire_sec: int = 60 * 60 * 24 * 7
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     origin: str = os.getenv("ORIGIN", "http://trip.com")
@@ -42,6 +45,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         extra="ignore",
     )
+
+    refresh_token_path: str = "/api/auth/refresh"
+    refresh_token_name: str = "refresh_token"
 
 
 settings = Settings()
