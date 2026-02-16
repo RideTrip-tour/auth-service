@@ -2,23 +2,32 @@ import logging
 from typing import Generic
 
 import jwt
-from fastapi import APIRouter, Depends, Request
-from fastapi_users import (BaseUserManager, FastAPIUsers, IntegerIDMixin,
-                           exceptions, models, schemas)
-from fastapi_users.authentication import (AuthenticationBackend,
-                                          CookieTransport, JWTStrategy,
-                                          Strategy)
+from fastapi import APIRouter, Depends, Response, Request, status
+from fastapi_users import (
+    BaseUserManager,
+    FastAPIUsers,
+    IntegerIDMixin,
+    exceptions,
+    models,
+    schemas,
+)
+from fastapi_users.authentication import (
+    AuthenticationBackend,
+    CookieTransport,
+    JWTStrategy,
+    Strategy,
+)
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 
-from app.db.database import get_user_db
-from app.db.models import User
+from app.db.database import AsyncSessionLocal, get_async_session, get_user_db
+from app.db.models import User, RefreshToken
 from app.routes.register import get_register_router, get_verify_router
 from app.services.email import send_email
 from config import settings
 
-logger = logging.getLogger("users")
+logger = logging.getLogger("users.servises")
 
 
 SECRET = settings.jwt_secret
@@ -156,11 +165,109 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         return created_user
 
 
+class CookieTransportCustom(CookieTransport):
+    access_token_name = "access_token"
+    refresh_token_name = settings.refresh_token_name
+    access_cookie_max_age = settings.access_token_expire_sec
+    refresh_cookie_max_age = settings.refresh_token_expire_sec
+    refresh_path = settings.refresh_token_path
+
+    async def get_login_response(
+        self,
+        access_token: str,
+        refresh_token: str | None = None,
+    ) -> Response:
+        response = Response(status_code=status.HTTP_204_NO_CONTENT)
+        response = self._set_login_cookie(response, access_token)
+        if refresh_token:
+            response = self._set_refresh_cookie(response, refresh_token)
+        else:
+            logger.warning(f"Refresh token не установлен!")
+        return response
+
+    async def get_logout_response(self) -> Response:
+        response = Response(status_code=status.HTTP_204_NO_CONTENT)
+        self._clear_access_cookie(response)
+        self._clear_refresh_cookie(response)
+        return response
+
+    def _set_refresh_cookie(self, response, refresh_token):
+        response.set_cookie(
+            key=self.refresh_token_name,
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=self.refresh_cookie_max_age,
+            path=self.refresh_path,
+        )
+        logger.info(f"Установлен refresh token")
+        return response
+
+    def _set_login_cookie(self, response: Response, token: str) -> Response:
+        response.set_cookie(
+            self.access_token_name,
+            token,
+            max_age=self.cookie_max_age,
+            path=self.cookie_path,
+            domain=self.cookie_domain,
+            secure=True,
+            httponly=True,
+            samesite=self.cookie_samesite,
+        )
+        return response
+
+    def _clear_access_cookie(self, response: Response) -> None:
+        response.set_cookie(
+            key=self.access_token_name,
+            value="",
+            max_age=0,
+            path=self.cookie_path,
+            domain=self.cookie_domain,
+            secure=self.cookie_secure,
+            httponly=self.cookie_httponly,
+            samesite=self.cookie_samesite,
+        )
+
+    def _clear_refresh_cookie(self, response: Response) -> None:
+        response.set_cookie(
+            key=self.refresh_token_name,
+            value="",
+            max_age=0,
+            path=self.refresh_path,
+            secure=self.cookie_secure,
+            httponly=True,
+            samesite="strict",
+        )
+
+
+class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
+    def __init__(self, *args, session_factory, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_factory = session_factory
+
+    async def login(
+        self,
+        strategy: Strategy[models.UP, models.ID],
+        user: models.UP,
+    ) -> Response:
+        access_token = await strategy.write_token(user)
+
+        async with self.session_factory() as session:
+            async with session.begin():
+                refresh_token = RefreshToken.create(user.id)
+                session.add(refresh_token)
+
+        return await self.transport.get_login_response(
+            access_token, refresh_token.token
+        )
+
+
 async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db)):
     yield UserManager(user_db)
 
 
-cookie_transport = CookieTransport(
+cookie_transport = CookieTransportCustom(
     cookie_name="access_token",
     cookie_max_age=settings.access_token_expire_sec,
 )
@@ -172,10 +279,11 @@ def get_strategy() -> Strategy[models.UP, models.ID]:
     )
 
 
-auth_backend = AuthenticationBackend(
+auth_backend = AuthenticationBackendCustom(
     name="cookie",
     transport=cookie_transport,
     get_strategy=get_strategy,
+    session_factory=AsyncSessionLocal,
 )
 
 fastapi_users = FastAPIUsersCustomRegister[User, int](get_user_manager, [auth_backend])
