@@ -1,5 +1,4 @@
-from fastapi import (APIRouter, Body, Depends, HTTPException, Request,
-                     Response, status)
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.password import PasswordHelper

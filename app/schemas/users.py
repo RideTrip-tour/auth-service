@@ -1,5 +1,6 @@
 from fastapi_users import schemas
-from pydantic import field_validator,Field
+from pydantic import field_validator, Field
+
 
 class UserRead(schemas.BaseUser[int]):
     pass
@@ -7,6 +8,7 @@ class UserRead(schemas.BaseUser[int]):
 
 class UserCreate(schemas.BaseUserCreate):
     password: str = Field(min_length=8, max_length=100)
+
     @field_validator("email", mode="after")
     @classmethod
     def validate_email_ascii(cls, value: str) -> str:
