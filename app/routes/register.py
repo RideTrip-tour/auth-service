@@ -54,7 +54,7 @@ def get_register_router(
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
     ):
         """
-        Не регсрируем пользователя сразу,
+        Не регирируем пользователя сразу,
         создаем данные для регистрации и валидируем их
         """
         existing_user = await user_manager.user_db.get_by_email(user_create.email)

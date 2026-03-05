@@ -273,7 +273,7 @@ class CookieTransportCustom(CookieTransport):
         response.set_cookie(
             key=self.cookie_name,
             value="",
-            max_age=self.cookie_max_age,
+            max_age=0,
             path=self.access_cookie_path,
             domain=self.cookie_domain,
             secure=not settings.debug,
@@ -288,7 +288,7 @@ class CookieTransportCustom(CookieTransport):
             httponly=True,
             secure=not settings.debug,
             samesite="lax",
-            max_age=self.refresh_cookie_max_age,
+            max_age=0,
             path=self.refresh_cookie_path,
         )
 
