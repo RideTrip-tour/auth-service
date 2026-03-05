@@ -130,6 +130,22 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_dict["email"],
         )
 
+    async def validate_password(
+        self, password: str, user: schemas.UC | models.UP
+    ) -> None:
+        if len(password) < 8:
+            raise exceptions.InvalidPasswordException(
+                reason="Пароль должен содержать минимум 8 символов."
+            )
+        if len(password) > 200:
+            raise exceptions.InvalidPasswordException(
+                reason="Пароль должен содержать не более 200 символов."
+            )
+        if any(ch.isspace() for ch in password):
+            raise exceptions.InvalidPasswordException(
+                reason="Пароль не должен содержать пробелы."
+            )
+
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
         try:
@@ -162,7 +178,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         return created_user
 
-
+   
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
     access_cookie_max_age = settings.access_token_expire_sec
