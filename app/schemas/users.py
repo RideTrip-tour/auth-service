@@ -11,3 +11,6 @@ class UserCreate(schemas.BaseUserCreate):
 
 class UserUpdate(schemas.BaseUserUpdate):
     pass
+
+class UserBeforeVerify(UserRead):
+    is_verified: bool = True
