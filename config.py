@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "secret"
     jwt_algorithm: str = "HS256"
     gateway_name: str = "Gate"
-    debug: bool = False
+    debug: bool = True
 
     # =========================
     # Redis
@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     db_host: str = "postgres"
     db_port: int = 5432
     db_name: str = "mydb"
-    db_user: str = "user"
-    db_pass: str = "password123"
+    db_user: str = "postgres"
+    db_pass: str = "postgres123"
     db_driver: str = "postgresql+asyncpg"
 
     # =========================

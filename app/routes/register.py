@@ -134,5 +134,10 @@ def get_verify_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.VERIFY_USER_ALREADY_VERIFIED,
             )
+        except exceptions.UserAlreadyExists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorCode.VERIFY_USER_ALREADY_VERIFIED,
+            )
 
     return router
