@@ -23,7 +23,7 @@ from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
-from app.db.database import AsyncSessionLocal, get_async_session, get_user_db
+from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.models import User, RefreshToken
 from app.exceptions.register import InvalidEmailException
 from app.routes.register import get_register_router, get_verify_router
@@ -233,7 +233,7 @@ class CookieTransportCustom(CookieTransport):
         if refresh_token:
             response = self._set_refresh_cookie(response, refresh_token)
         else:
-            logger.warning(f"Refresh token не установлен!")
+            logger.warning("Refresh token не установлен!")
         return response
 
     async def get_logout_response(self) -> Response:
@@ -253,7 +253,7 @@ class CookieTransportCustom(CookieTransport):
             max_age=self.refresh_cookie_max_age,
             path=self.refresh_cookie_path,
         )
-        logger.info(f"Установлен refresh token")
+        logger.info("Установлен refresh token")
         return response
 
     def _set_access_cookie(self, response: Response, token: str) -> Response:
