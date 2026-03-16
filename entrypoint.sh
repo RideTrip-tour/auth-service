@@ -1,9 +1,11 @@
 #!/bin/sh
-set -e
+set -euo pipefail
+
+MODE="${APP_MODE:-api}"
 
 # ---------- Функция ожидания Postgres ----------
 wait_for_postgres() {
-  echo "Waiting for PostgreSQL..."
+  log "Waiting for PostgreSQL..."
 
   for i in $(seq 1 30); do
     if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" >/dev/null 2>&1; then
@@ -11,17 +13,17 @@ wait_for_postgres() {
       return 0
     fi
 
-    echo "PostgreSQL unavailable (attempt $i) - sleeping"
+    log "PostgreSQL unavailable (attempt $i) - sleeping"
     sleep 2
   done
 
-  echo "PostgreSQL did not become ready in time"
+  log "PostgreSQL did not become ready in time"
   exit 1
 }
 
 # ---------- Функция ожидания Redis ----------
 wait_for_redis() {
-  echo "Waiting for Redis..."
+  log "Waiting for Redis..."
 
   for i in $(seq 1 30); do
     if redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ping >/dev/null 2>&1; then
@@ -29,30 +31,28 @@ wait_for_redis() {
       return 0
     fi
 
-    echo "Redis unavailable (attempt $i) - sleeping"
+    log "Redis unavailable (attempt $i) - sleeping"
     sleep 2
   done
 
-  echo "Redis did not become ready in time"
+  log "Redis did not become ready in time"
   exit 1
 }
 
 # ---------- Функция миграций ----------
 run_migrations() {
-  echo "Running migrations..."
+  log "Running migrations..."
+  alembic upgrade head
+}
 
-  for i in $(seq 1 5); do
-    if alembic upgrade head; then
-      echo "Migrations applied"
-      return 0
-    fi
+# ---------- Запуск FastAPI ----------
+start_api() {
+  log "Starting FastAPI..."
 
-    echo "Migration attempt $i failed - retrying"
-    sleep 3
-  done
-
-  echo "Migrations failed"
-  exit 1
+  exec uvicorn main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 1
 }
 
 # ---------- Swarm secrets (если используются) ----------
@@ -79,15 +79,12 @@ fi
 
 # ---------- Ожидание сервисов ----------
 wait_for_postgres
+
+if [ "$MODE" = "migrate" ]; then
+  run_migrations
+  exit 0
+fi
+
 wait_for_redis
 
-# ---------- Миграции ----------
-run_migrations
-
-# ---------- Запуск FastAPI ----------
-echo "Starting FastAPI..."
-
-exec uvicorn main:app \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --workers 2
+start_api
