@@ -1,5 +1,4 @@
-import os
-from dotenv import load_dotenv
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,11 +20,11 @@ class Settings(BaseSettings):
     # =========================
     # Database
     # =========================
-    db_host: str = "postgres"
-    db_port: int = 5432
-    db_name: str = "mydb"
-    db_user: str = "user"
-    db_pass: str = "password123"
+    db_host: str = Field(validation_alias='DB_AUTH_SERVICE_HOST', default="postgres")
+    db_port: int = Field(validation_alias='DB_AUTH_SERVICE_PORT', default=5432)
+    db_name: str = Field(validation_alias='DB_AUTH_SERVICE_NAME', default="mydb")
+    db_user: str = Field(validation_alias='DB_AUTH_SERVICE_USER', default="user")
+    db_pass: str = Field(validation_alias='DB_AUTH_SERVICE_PASS', default="password123")
     db_driver: str = "postgresql+asyncpg"
 
     # =========================
@@ -61,5 +60,6 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        secrets_dir='/run/secrets'
     )
 settings = Settings()
