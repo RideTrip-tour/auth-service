@@ -1,5 +1,4 @@
-from fastapi import (APIRouter, Body, Depends, HTTPException, Request,
-                     Response, status)
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.password import PasswordHelper
@@ -65,14 +64,14 @@ def get_register_router(
             )
         try:
             await user_manager.validate_password(user_create.password, user_create)
-        except exceptions.InvalidPasswordException as e:
+        except exceptions.InvalidPasswordException as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "code": ErrorCode.REGISTER_INVALID_PASSWORD,
-                    "reason": e.reason,
+                    "reason": exc.reason,
                 },
-            )
+            ) from exc
 
         user_dict = user_create.create_update_dict()
         password = user_dict.pop("password")
@@ -125,15 +124,15 @@ def get_verify_router(
         try:
             user = await user_manager.verify(token, request)
             return user_schema.model_validate(user)
-        except (exceptions.InvalidVerifyToken, exceptions.UserNotExists):
+        except (exceptions.InvalidVerifyToken, exceptions.UserNotExists) as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.VERIFY_USER_BAD_TOKEN,
-            )
-        except exceptions.UserAlreadyVerified:
+            ) from exc
+        except (exceptions.UserAlreadyVerified, exceptions.UserAlreadyExists) as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.VERIFY_USER_ALREADY_VERIFIED,
-            )
+            ) from exc
 
     return router

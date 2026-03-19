@@ -5,7 +5,6 @@ from sqlalchemy import pool
 
 from alembic import context
 
-
 config = context.config
 
 if config.config_file_name is not None:
@@ -19,9 +18,10 @@ target_metadata = Base.metadata
 
 # Alembic не умеет работать с синхронными движками
 config.set_main_option(
-    "sqlalchemy.url", 
-    f'postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}'
-    )
+    "sqlalchemy.url",
+    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}",
+)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

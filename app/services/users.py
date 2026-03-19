@@ -221,7 +221,7 @@ class CookieTransportCustom(CookieTransport):
     access_cookie_max_age = settings.access_token_expire_sec
     refresh_cookie_max_age = settings.refresh_token_expire_sec
     refresh_cookie_path = settings.refresh_token_path
-    access_cookie_path = "/" 
+    access_cookie_path = "/"
 
     async def get_login_response(
         self,
@@ -243,7 +243,9 @@ class CookieTransportCustom(CookieTransport):
         return response
 
     def _set_refresh_cookie(self, response, refresh_token):
-        logger.info(f"Установка {self.refresh_token_name} cookie: path={self.refresh_cookie_path}")
+        logger.info(
+            f"Установка {self.refresh_token_name} cookie: path={self.refresh_cookie_path}"
+        )
         response.set_cookie(
             key=self.refresh_token_name,
             value=refresh_token,
@@ -257,7 +259,9 @@ class CookieTransportCustom(CookieTransport):
         return response
 
     def _set_access_cookie(self, response: Response, token: str) -> Response:
-        logger.info(f"Установка {self.cookie_name} cookie: path={self.access_cookie_path}")
+        logger.info(
+            f"Установка {self.cookie_name} cookie: path={self.access_cookie_path}"
+        )
         response.set_cookie(
             key=self.cookie_name,
             value=token,
@@ -326,8 +330,9 @@ cookie_transport = CookieTransportCustom(
 
 def get_strategy() -> Strategy[models.UP, models.ID]:
     return JWTStrategyCustom(
-        secret=SECRET, lifetime_seconds=settings.access_token_expire_sec,
-        token_audience=settings.gateway_name
+        secret=SECRET,
+        lifetime_seconds=settings.access_token_expire_sec,
+        token_audience=settings.gateway_name,
     )
 
 

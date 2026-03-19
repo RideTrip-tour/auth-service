@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "secret"
     jwt_algorithm: str = "HS256"
     gateway_name: str = "Gate"
-    debug: bool = False
+    debug: bool = True
 
     # =========================
     # Redis
@@ -62,4 +62,6 @@ class Settings(BaseSettings):
         extra="ignore",
         secrets_dir='/run/secrets'
     )
+
+
 settings = Settings()
