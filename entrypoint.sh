@@ -1,7 +1,11 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 MODE="${APP_MODE:-api}"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
 
 # ---------- Функция ожидания Postgres ----------
 wait_for_postgres() {
