@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Generic
 
 import jwt
@@ -133,55 +132,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
         )
-
-    async def validate_password(
-        self, password: str, user: schemas.UC | models.UP
-    ) -> None:
-        if len(password) < 8:
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль должен содержать минимум 8 символов."
-            )
-        if len(password) > 200:
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль должен содержать не более 200 символов."
-            )
-        if any(ch.isspace() for ch in password):
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль не должен содержать пробелы."
-            )
-        
-    async def validate_email(
-        self, email: str, user: schemas.UC | models.UP
-    ) -> None:
-        if not email or not email.strip():
-            raise InvalidEmailException(
-                reason="Email не может быть пустым."
-            )
-        if len(email) > 255:
-            raise InvalidEmailException(
-                reason="Email должен содержать не более 255 символов."
-            )
-        if any(ch.isspace() for ch in email):
-            raise InvalidEmailException(
-                reason="Email не должен содержать пробельные символы."
-            )
-        if "@" in email:
-            local_part = email.split("@", 1)[0]
-            if len(local_part) > 64:
-                raise InvalidEmailException(
-                    reason="Локальная часть email должна содержать не более 64 символов."
-                )
-
-        try:
-            normalized_email = str(email_adapter.validate_python(email))
-        except ValidationError as exc:
-            raise InvalidEmailException(reason="Некорректный формат email.") from exc
-
-        domain = normalized_email.rsplit("@", 1)[1]
-        if re.search(r"[А-Яа-яЁё]", domain):
-            raise InvalidEmailException(
-                reason="Доменная часть email не должна содержать кириллицу."
-            )
         
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
