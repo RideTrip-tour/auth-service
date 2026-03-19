@@ -6,7 +6,6 @@ from sqlalchemy.orm import selectinload
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_async_session
 from app.db.models import RefreshToken
 from app.services.users import auth_backend, cookie_transport, get_strategy

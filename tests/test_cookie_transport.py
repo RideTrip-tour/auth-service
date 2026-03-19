@@ -5,7 +5,6 @@ import sys
 
 from unittest.mock import AsyncMock, patch
 import pytest
-from main import app
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
@@ -131,14 +130,20 @@ async def test_refresh_sets_new_access_and_refresh_cookies(transport):
 
 
 @pytest.mark.asyncio
-async def test_login_sets_cookies(client, mock_user_db):
+async def test_login_sets_cookies(client, mock_user_db, transport):
     existing = type(
         "User", (), {"id": 1, "email": "user@example.com", "hashed_password": ""}
     )()
     mock_user_db.get_by_email_result = existing
+    async def _fake_login(*_args, **_kwargs):
+        return await transport.get_login_response("access.jwt.token", "refresh.jwt.token")
+
     with patch(
         "app.services.users.UserManager.authenticate",
         new=AsyncMock(return_value=mock_user_db.create_result),
+    ), patch(
+        "app.services.users.auth_backend.login",
+        new=AsyncMock(side_effect=_fake_login),
     ):
         response = await client.post(
             "/api/auth/login", data={"username": "user@example.com", "password": ""}
