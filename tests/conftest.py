@@ -1,7 +1,7 @@
 import os
 import sys
 from typing import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio

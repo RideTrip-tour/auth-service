@@ -19,7 +19,7 @@ fastapi==0.121.3
 fastapi-cli==0.0.16
 fastapi-cloud-cli==0.5.1
 fastapi-mail==1.4.2
-fastapi-users==15.0.1
+fastapi-users==15.0.4
 fastapi-users-db-sqlalchemy==7.0.0
 fastar==0.6.0
 greenlet==3.2.4
@@ -40,15 +40,15 @@ packaging==25.0
 pathspec==0.12.1
 platformdirs==4.5.0
 psycopg2-binary==2.9.11
-pwdlib==0.2.1
+pwdlib==0.3.0
 pycparser==2.23
 pydantic==2.12.4
 pydantic-settings==2.12.0
 pydantic_core==2.41.5
 Pygments==2.19.2
-PyJWT==2.10.1
+PyJWT==2.12.0
 python-dotenv==1.2.1
-python-multipart==0.0.20
+python-multipart==0.0.22
 pytokens==0.3.0
 PyYAML==6.0.3
 rich==14.2.0

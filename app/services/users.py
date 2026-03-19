@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Generic
 
 import jwt
@@ -21,11 +20,10 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
-from pydantic import EmailStr, TypeAdapter, ValidationError
+from pydantic import EmailStr, TypeAdapter
 
-from app.db.database import AsyncSessionLocal, get_async_session, get_user_db
+from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.models import User, RefreshToken
-from app.exceptions.register import InvalidEmailException
 from app.routes.register import get_register_router, get_verify_router
 from app.services.email import send_email
 from config import settings
@@ -133,55 +131,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
         )
-
-    async def validate_password(
-        self, password: str, user: schemas.UC | models.UP
-    ) -> None:
-        if len(password) < 8:
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль должен содержать минимум 8 символов."
-            )
-        if len(password) > 200:
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль должен содержать не более 200 символов."
-            )
-        if any(ch.isspace() for ch in password):
-            raise exceptions.InvalidPasswordException(
-                reason="Пароль не должен содержать пробелы."
-            )
-        
-    async def validate_email(
-        self, email: str, user: schemas.UC | models.UP
-    ) -> None:
-        if not email or not email.strip():
-            raise InvalidEmailException(
-                reason="Email не может быть пустым."
-            )
-        if len(email) > 255:
-            raise InvalidEmailException(
-                reason="Email должен содержать не более 255 символов."
-            )
-        if any(ch.isspace() for ch in email):
-            raise InvalidEmailException(
-                reason="Email не должен содержать пробельные символы."
-            )
-        if "@" in email:
-            local_part = email.split("@", 1)[0]
-            if len(local_part) > 64:
-                raise InvalidEmailException(
-                    reason="Локальная часть email должна содержать не более 64 символов."
-                )
-
-        try:
-            normalized_email = str(email_adapter.validate_python(email))
-        except ValidationError as exc:
-            raise InvalidEmailException(reason="Некорректный формат email.") from exc
-
-        domain = normalized_email.rsplit("@", 1)[1]
-        if re.search(r"[А-Яа-яЁё]", domain):
-            raise InvalidEmailException(
-                reason="Доменная часть email не должна содержать кириллицу."
-            )
         
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
@@ -221,7 +170,7 @@ class CookieTransportCustom(CookieTransport):
     access_cookie_max_age = settings.access_token_expire_sec
     refresh_cookie_max_age = settings.refresh_token_expire_sec
     refresh_cookie_path = settings.refresh_token_path
-    access_cookie_path = "/" 
+    access_cookie_path = "/"
 
     async def get_login_response(
         self,
@@ -233,7 +182,7 @@ class CookieTransportCustom(CookieTransport):
         if refresh_token:
             response = self._set_refresh_cookie(response, refresh_token)
         else:
-            logger.warning(f"Refresh token не установлен!")
+            logger.warning("Refresh token не установлен!")
         return response
 
     async def get_logout_response(self) -> Response:
@@ -243,7 +192,9 @@ class CookieTransportCustom(CookieTransport):
         return response
 
     def _set_refresh_cookie(self, response, refresh_token):
-        logger.info(f"Установка {self.refresh_token_name} cookie: path={self.refresh_cookie_path}")
+        logger.info(
+            f"Установка {self.refresh_token_name} cookie: path={self.refresh_cookie_path}"
+        )
         response.set_cookie(
             key=self.refresh_token_name,
             value=refresh_token,
@@ -253,11 +204,13 @@ class CookieTransportCustom(CookieTransport):
             max_age=self.refresh_cookie_max_age,
             path=self.refresh_cookie_path,
         )
-        logger.info(f"Установлен refresh token")
+        logger.info("Установлен refresh token")
         return response
 
     def _set_access_cookie(self, response: Response, token: str) -> Response:
-        logger.info(f"Установка {self.cookie_name} cookie: path={self.access_cookie_path}")
+        logger.info(
+            f"Установка {self.cookie_name} cookie: path={self.access_cookie_path}"
+        )
         response.set_cookie(
             key=self.cookie_name,
             value=token,
@@ -326,8 +279,9 @@ cookie_transport = CookieTransportCustom(
 
 def get_strategy() -> Strategy[models.UP, models.ID]:
     return JWTStrategyCustom(
-        secret=SECRET, lifetime_seconds=settings.access_token_expire_sec,
-        token_audience=settings.gateway_name
+        secret=SECRET,
+        lifetime_seconds=settings.access_token_expire_sec,
+        token_audience=settings.gateway_name,
     )
 
 

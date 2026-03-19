@@ -1,6 +1,3 @@
-import os
-from dotenv import load_dotenv
-
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -8,23 +5,23 @@ from sqlalchemy import pool
 
 from alembic import context
 
-
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.db.base import Base
-from app.db.models import *
-from config import settings as se
+from app.db.base import Base # noqa
+from app.db.models import * # noqa
+from config import settings as se # noqa
 
 target_metadata = Base.metadata
 
 # Alembic не умеет работать с синхронными движками
 config.set_main_option(
-    "sqlalchemy.url", 
-    f'postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}'
-    )
+    "sqlalchemy.url",
+    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}",
+)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
