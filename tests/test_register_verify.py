@@ -55,8 +55,6 @@ async def test_register_user_already_exists(client, mock_user_db):
 async def test_register_invalid_password(client, mock_user_db):
     """При ошибке валидации пароля (InvalidPasswordException) возвращается 400."""
     mock_user_db.get_by_email_result = None
-    from fastapi_users import exceptions as fu_exceptions
-
     response = await client.post(
         "/api/auth/register",
         json={"email": "user@example.com", "password": "short"},

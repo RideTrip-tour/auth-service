@@ -20,11 +20,10 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
-from pydantic import EmailStr, TypeAdapter, ValidationError
+from pydantic import EmailStr, TypeAdapter
 
 from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.models import User, RefreshToken
-from app.exceptions.register import InvalidEmailException
 from app.routes.register import get_register_router, get_verify_router
 from app.services.email import send_email
 from config import settings
