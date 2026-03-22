@@ -20,6 +20,10 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
+from datetime import datetime, timedelta, timezone
+from app.utils.token_crypto import encrypt_token
+from cryptography.fernet import InvalidToken
+from app.utils.token_crypto import decrypt_token
 from pydantic import EmailStr, TypeAdapter
 
 from app.db.database import AsyncSessionLocal, get_user_db
@@ -105,22 +109,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
 
     async def on_before_register(self, user_dict: dict, request: Request | None = None):
-        """
-        Отправляем cсылку для подтверждения регистрации пользователю.
+        payload = {
+            **user_dict,
+            "aud": self.verification_token_audience,
+            "exp": int(
+                (
+                    datetime.now(timezone.utc)
+                    + timedelta(seconds=self.verification_token_lifetime_seconds)
+                ).timestamp()
+            ),
+        }
 
-        В сылку включаем токен, в котором лежит необходимая информация
-        для регистрации пользователя.
-        """
-        user_dict["aud"] = self.verification_token_audience
-        verify_token = generate_jwt(
-            user_dict,
-            self.verification_token_secret,
-            self.verification_token_lifetime_seconds,
-        )
-        link = f"{settings.origin}/{settings.lk_path}?verufy_token={verify_token}"
+        verify_token = encrypt_token(payload, settings.jwt_secret)
+
+        link = f"{settings.origin}/{settings.lk_path}?verify_token={verify_token}"
+
         await send_email(
             user_dict["email"],
-            "Подтвержжение регистрации",
+            "Подтверждение регистрации",
             f"""
             Доброго времени суток!
 
@@ -133,25 +139,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
-        """Проверяем токен на валидность и создаем пользователя"""
         try:
-            data = decode_jwt(
-                token,
-                self.verification_token_secret,
-                [self.verification_token_audience],
-            )
+            data = decrypt_token(token, settings.jwt_secret)
             logger.info(f"Данные из токена: {data}")
-        except jwt.PyJWTError:
+        except InvalidToken:
             raise exceptions.InvalidVerifyToken()
 
         try:
             aud = data.pop("aud")
             email = data["email"]
-            data.pop("exp")
+            exp = data.pop("exp")
         except KeyError:
             raise exceptions.InvalidVerifyToken()
 
         if aud != self.verification_token_audience:
+            raise exceptions.InvalidVerifyToken()
+
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        if exp < now_ts:
             raise exceptions.InvalidVerifyToken()
 
         existing_user = await self.user_db.get_by_email(email)
@@ -159,12 +164,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise exceptions.UserAlreadyExists()
 
         data["is_verified"] = True
-
         created_user = await self.user_db.create(data)
 
         return created_user
 
-   
+
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
     access_cookie_max_age = settings.access_token_expire_sec
