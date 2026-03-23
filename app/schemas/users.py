@@ -1,7 +1,7 @@
 import re
 
 from fastapi_users import schemas
-from pydantic import EmailStr, field_validator, TypeAdapter
+from pydantic import EmailStr, field_validator, TypeAdapter,BaseModel
 
 email_adapter = TypeAdapter(EmailStr)
 
@@ -48,3 +48,18 @@ class UserUpdate(schemas.BaseUserUpdate):
 
 class UserBeforeVerify(UserRead):
     is_verified: bool = True
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+    @field_validator("password", mode="after")
+    @classmethod
+    def validate_password(cls, password: str) -> str:
+        if any(ch.isspace() for ch in password):
+            raise ValueError("Пароль не должен содержать пробелы")
+        if 8 > len(password) or len(password) > 100:
+            raise ValueError("Пароль должен быть более 8 и менее 100 символов")
+        return password
+

@@ -8,10 +8,18 @@ from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 from app.db.database import get_async_session
 from app.db.models import RefreshToken
-from app.services.users import auth_backend, cookie_transport, get_strategy
+from app.services.users import auth_backend, cookie_transport, get_strategy,get_user_manager
 from config import settings
+from datetime import datetime, timedelta, timezone
+from app.utils.token_crypto import encrypt_token
+from app.services.email import send_email
+from app.utils.token_crypto import decrypt_token
+from cryptography.fernet import InvalidToken
+from app.schemas.users import ResetPasswordRequest
+from fastapi_users.password import PasswordHelper
 
 token_router = APIRouter()
+password_helper = PasswordHelper()
 
 refresh_responses: OpenAPIResponseType = {
     status.HTTP_400_BAD_REQUEST: {
@@ -83,3 +91,68 @@ async def refresh_token(
     return await cookie_transport.get_login_response(
         access_token, new_refresh_token.token
     )
+
+
+@token_router.post("/forgot-password")
+async def forgot_password(email: str):
+    user = await get_user_manager.get_by_email(email)
+
+    if not user:
+        return {"message": "If user exists, email was sent"}  # не палим
+
+    payload = {
+        "user_id": str(user.id),
+        "email": user.email,
+        "type": "reset_password",
+        "exp": int(
+            (datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()
+        ),
+    }
+
+    token = encrypt_token(payload, settings.secret_key)
+
+    link = f"{settings.frontend_url}/reset-password?token={token}"
+
+    await send_email(
+        user.email,
+        "Восстановление пароля",
+        f"Перейдите по ссылке: {link}",
+    )
+
+    return {"message": "If user exists, email was sent"}
+
+
+@token_router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest, new_password: str):
+    password = data.password
+    token = data.token
+    try:
+        data = decrypt_token(token, settings.secret_key)
+    except InvalidToken:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    # проверка структуры
+    if data.get("type") != "reset_password":
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    # проверка exp
+    if data["exp"] < int(datetime.now(timezone.utc).timestamp()):
+        raise HTTPException(status_code=400, detail="Token expired")
+
+    user = await get_user_manager.get_by_email(data["email"])
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+
+
+    hashed_password = password_helper.hash(new_password)
+
+    user.hashed_password = hashed_password
+    await get_user_manager.update(user)
+
+    await send_email(
+        user.email,
+        "Пароль изменён",
+        "Ваш пароль был успешно изменён",
+    )
+
+    return {"message": "Password updated"}
