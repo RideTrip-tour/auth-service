@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # =========================
     # Security
     # =========================
-    jwt_secret: str = "secret"
+    jwt_secret: str = "secretsecretsecretsecretsecretsecret"
     jwt_algorithm: str = "HS256"
     gateway_name: str = "Gate"
     debug: bool = True
