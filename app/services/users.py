@@ -2,7 +2,7 @@ import logging
 from typing import Generic
 
 import jwt
-from fastapi import APIRouter, Depends, Response, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from fastapi_users import (
     BaseUserManager,
     FastAPIUsers,
@@ -13,6 +13,7 @@ from fastapi_users import (
 )
 from fastapi_users.authentication import (
     AuthenticationBackend,
+    Authenticator,
     CookieTransport,
     JWTStrategy,
     Strategy,
@@ -59,6 +60,10 @@ class FastAPIUsersCustomRegister(
     FastAPIUsers[models.UP, models.ID], Generic[models.UP, models.ID]
 ):
     """Переопределяет Регистрацию пользователя"""
+    def __init__(self, get_user_manager, auth_backends):
+        super().__init__(get_user_manager, auth_backends)
+        self.authenticator = CustomAuthenticator(auth_backends, get_user_manager)
+        self.current_user = self.authenticator.current_user
 
     def get_register_router(
         self, user_schema: type[schemas.U], user_create_schema: type[schemas.UC]
@@ -164,7 +169,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         return created_user
 
-   
+    async def create(self, user_create, safe=False, request=None):
+        user_create.is_superuser = False
+        return await super().create(user_create, safe, request)
+    
+    async def update(self, user_update, user, safe=False, request=None):
+        if hasattr(user_update, "is_superuser"):
+            user_update.is_superuser = False
+        return await super().update(user_update, user, safe, request)
+
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
     access_cookie_max_age = settings.access_token_expire_sec
@@ -243,6 +256,32 @@ class CookieTransportCustom(CookieTransport):
             samesite="lax",
             max_age=0,
             path=self.refresh_cookie_path,
+        )
+
+
+class CustomAuthenticator(Authenticator[User, int]):
+
+    async def _authenticate(
+            self,
+            *args,
+            user_manager: UserManager,
+            optional: bool = False,
+            active: bool = False,
+            verified: bool = False,
+            superuser: bool = False,
+            **kwargs,
+            ):
+        if superuser:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        return await super()._authenticate(
+            self,
+            *args,
+            user_manager=user_manager,
+            optional=optional,
+            active=active,
+            verified=verified,
+            superuser=superuser,
+            **kwargs,
         )
 
 

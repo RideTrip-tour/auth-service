@@ -11,6 +11,7 @@ class UserRead(schemas.BaseUser[int]):
 
 
 class UserCreate(schemas.BaseUserCreate):
+    is_superuser: bool = False
     @field_validator("email", mode="after")
     @classmethod
     def validate_email(cls, email: str) -> str:
