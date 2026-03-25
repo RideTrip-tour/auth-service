@@ -1,12 +1,13 @@
 import re
 
 from fastapi_users import schemas
-from pydantic import EmailStr, field_validator, TypeAdapter
+from pydantic import EmailStr, Field, field_validator, TypeAdapter
+from typing import Annotated
 
 email_adapter = TypeAdapter(EmailStr)
 
 class UserRead(schemas.BaseUser[int]):
-    pass
+    id: Annotated[int, Field(gt=0, le=2147483647)]
 
 
 class UserCreate(schemas.BaseUserCreate):
