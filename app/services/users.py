@@ -26,8 +26,9 @@ from pydantic import EmailStr, TypeAdapter
 from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
-from app.routes.register import get_register_router, get_verify_router
 from app.routes.auth import get_auth_router
+from app.routes.register import get_register_router, get_verify_router
+from app.routes.users import get_users_router
 from app.services.email import send_email
 from config import settings
 
@@ -115,7 +116,28 @@ class FastAPIUsersCustomRegister(
             requires_verification,
         )
 
+    def get_users_router(
+        self,
+        user_schema: type[schemas.U],
+        user_update_schema: type[schemas.UU],
+        requires_verification: bool = False,
+    ) -> APIRouter:
+        """
+        Return a router with routes to manage users.
 
+        :param user_schema: Pydantic schema of a public user.
+        :param user_update_schema: Pydantic schema for updating a user.
+        :param requires_verification: Whether the endpoints
+        require the users to be verified or not. Defaults to False.
+        """
+        return get_users_router(
+            self.get_user_manager,
+            user_schema,
+            user_update_schema,
+            self.authenticator,
+            requires_verification,
+        )
+    
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
