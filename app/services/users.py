@@ -24,8 +24,10 @@ from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter
 
 from app.db.database import AsyncSessionLocal, get_user_db
-from app.db.models import User, RefreshToken
+from app.db.models import User
+from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.routes.register import get_register_router, get_verify_router
+from app.routes.auth import get_auth_router
 from app.services.email import send_email
 from config import settings
 
@@ -55,6 +57,14 @@ class JWTStrategyCustom(JWTStrategy):
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
         )
 
+    async def destroy_token(
+        self, token: str, user: models.UP
+    ) -> None:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                token_db = SQLAlchemyRefreshTokenDatabase(session)
+                if token:
+                    await token_db.delete_by_token(token)
 
 class FastAPIUsersCustomRegister(
     FastAPIUsers[models.UP, models.ID], Generic[models.UP, models.ID]
@@ -85,6 +95,25 @@ class FastAPIUsersCustomRegister(
         :param user_schema: Pydantic schema of a public user.
         """
         return get_verify_router(self.get_user_manager, user_schema)
+
+    def get_auth_router(
+        self,
+        backend: AuthenticationBackend[models.UP, models.ID],
+        requires_verification: bool = False,
+    ) -> APIRouter:
+        """
+        Return an auth router for a given authentication backend.
+
+        :param backend: The authentication backend instance.
+        :param requires_verification: Whether the authentication
+        require the user to be verified or not. Defaults to False.
+        """
+        return get_auth_router(
+            backend,
+            self.get_user_manager,
+            self.authenticator,
+            requires_verification,
+        )
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
@@ -177,6 +206,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         if hasattr(user_update, "is_superuser"):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
+
 
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
@@ -299,8 +329,8 @@ class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
 
         async with self.session_factory() as session:
             async with session.begin():
-                refresh_token = RefreshToken.create(user.id)
-                session.add(refresh_token)
+                token_db = SQLAlchemyRefreshTokenDatabase(session)
+                refresh_token = await token_db.create(user.id)
         return await self.transport.get_login_response(
             access_token, refresh_token.token
         )
