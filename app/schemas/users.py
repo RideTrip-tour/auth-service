@@ -39,6 +39,8 @@ class UserCreate(schemas.BaseUserCreate):
     def validate_password(cls, password: str) -> str:
         if any(ch.isspace() for ch in password):
             raise ValueError("Пароль не должен содержать пробелы")
+        if re.search(r"[А-Яа-яЁё]", password):
+            raise ValueError("Пароль не должен содержать кириллицу")
         if 8 > len(password) or len(password) > 100:
             raise ValueError("Пароль должен быть более 8 и менее 100 символов")
         return password

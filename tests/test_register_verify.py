@@ -65,6 +65,20 @@ async def test_register_invalid_password(client, mock_user_db):
     assert "Пароль должен быть более 8 и менее 100 символов" in detail["msg"]
 
 
+@pytest.mark.asyncio
+async def test_register_password_with_cyrillic_rejected(client, mock_user_db):
+    """Пароль с кириллицей должен отклоняться на уровне схемы."""
+    mock_user_db.get_by_email_result = None
+    response = await client.post(
+        "/api/auth/register",
+        json={"email": "user@example.com", "password": "passwordпароль123"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"][0]
+    assert "msg" in detail
+    assert "Пароль не должен содержать кириллицу" in detail["msg"]
+
+
 # --- Verify ---
 
 
