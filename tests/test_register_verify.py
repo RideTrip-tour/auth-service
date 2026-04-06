@@ -35,7 +35,7 @@ async def test_register_success(client, mock_user_db):
     send_email_mock.assert_called_once()
     call_kw = send_email_mock.call_args
     assert call_kw[0][0] == "newuser@example.com"
-    assert "verufy_token=" in call_kw[0][2] or "Подтвержжение" in call_kw[0][1]
+    assert "verify_token=" in call_kw[0][2] or "Подтверждение" in call_kw[0][1]
 
 
 @pytest.mark.asyncio
