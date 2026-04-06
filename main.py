@@ -6,6 +6,7 @@ from app.routes.token import token_router
 from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdate
 from app.services.users import auth_backend, fastapi_users, google_oauth_client
 from app.utils.logging import LOGGING_CONFIG
+from app.routes.users import router as users_router
 from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -47,10 +48,7 @@ app.include_router(
     tags=["auth"],
 )
 
-app.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/api/users",
-    tags=["users"],
-)
+app.include_router(users_router)
+
 
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])

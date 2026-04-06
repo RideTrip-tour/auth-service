@@ -2,6 +2,7 @@ import re
 
 from fastapi_users import schemas
 from pydantic import EmailStr, field_validator, TypeAdapter,BaseModel
+from typing import Optional
 
 email_adapter = TypeAdapter(EmailStr)
 
@@ -49,6 +50,8 @@ class UserUpdate(schemas.BaseUserUpdate):
 class UserBeforeVerify(UserRead):
     is_verified: bool = True
 
+class UserMeUpdate(schemas.CreateUpdateDictModel):
+    password: Optional[str] = None
 
 class ResetPasswordRequest(BaseModel):
     token: str
