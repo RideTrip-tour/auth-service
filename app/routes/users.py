@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-
+from fastapi import APIRouter, Depends, Response, status, Request
 from app.schemas.users import UserMeUpdate, UserRead
 from app.services.users import fastapi_users, get_user_manager
 from fastapi_users import BaseUserManager
@@ -23,9 +22,6 @@ async def update_me(
 ):
     update_dict = user_update.create_update_dict()
 
-    # Дополнительная защита:
-    # даже если кто-то попытается руками подсунуть email/is_verified,
-    # мы их выкинем.
     update_dict.pop("email", None)
     update_dict.pop("is_verified", None)
     update_dict.pop("is_superuser", None)
@@ -45,3 +41,12 @@ async def update_me(
         )
 
     return updated_user
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    request: Request,
+    user=Depends(current_active_user),
+    user_manager=Depends(get_user_manager),
+):
+    await user_manager.delete(user, request)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
