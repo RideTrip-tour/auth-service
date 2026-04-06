@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status, Request
+from fastapi import APIRouter, Depends, Response, status, Request,HTTPException
 from app.schemas.users import UserMeUpdate, UserRead
 from app.services.users import fastapi_users, get_user_manager
 from fastapi_users import BaseUserManager

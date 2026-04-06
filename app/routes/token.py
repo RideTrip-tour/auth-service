@@ -15,7 +15,7 @@ from app.services.users import (
     get_user_manager,
 )
 from config import settings
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from app.utils.token_crypto import encrypt_token
 from app.services.email import send_email
 from app.utils.token_crypto import decrypt_token
@@ -127,7 +127,6 @@ async def forgot_password(email: str):
 
 @token_router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, new_password: str):
-    password = data.password
     token = data.token
     try:
         data = decrypt_token(token, settings.secret_key)
