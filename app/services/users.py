@@ -137,7 +137,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
         )
-        
+
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         try:
             data = decrypt_token(token, settings.jwt_secret)

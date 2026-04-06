@@ -8,7 +8,12 @@ from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 from app.db.database import get_async_session
 from app.db.models import RefreshToken
-from app.services.users import auth_backend, cookie_transport, get_strategy,get_user_manager
+from app.services.users import (
+    auth_backend,
+    cookie_transport,
+    get_strategy,
+    get_user_manager,
+)
 from config import settings
 from datetime import datetime, timedelta, timezone
 from app.utils.token_crypto import encrypt_token
@@ -104,9 +109,7 @@ async def forgot_password(email: str):
         "user_id": str(user.id),
         "email": user.email,
         "type": "reset_password",
-        "exp": int(
-            (datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()
-        ),
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
     }
 
     token = encrypt_token(payload, settings.secret_key)
@@ -142,7 +145,6 @@ async def reset_password(data: ResetPasswordRequest, new_password: str):
     user = await get_user_manager.get_by_email(data["email"])
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
-
 
     hashed_password = password_helper.hash(new_password)
 

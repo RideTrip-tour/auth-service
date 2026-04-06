@@ -42,6 +42,7 @@ async def update_me(
 
     return updated_user
 
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_me(
     request: Request,
