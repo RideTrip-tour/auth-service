@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi_users.jwt import generate_jwt
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
-
+from datetime import datetime, timedelta, timezone
+from app.utils.token_crypto import encrypt_token
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -69,17 +70,13 @@ async def test_register_invalid_password(client, mock_user_db):
 
 
 def _make_verify_token(email: str, hashed_password: str) -> str:
-    """Формирует валидный токен подтверждения, как в on_before_register."""
     payload = {
         "email": email,
         "hashed_password": hashed_password,
         "aud": VERIFY_USER_TOKEN_AUDIENCE,
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=10)).timestamp()),
     }
-    return generate_jwt(
-        payload,
-        settings.jwt_secret,
-        lifetime_seconds=10 * 60,
-    )
+    return encrypt_token(payload, settings.jwt_secret)
 
 
 @pytest.mark.asyncio
