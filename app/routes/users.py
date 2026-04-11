@@ -20,16 +20,11 @@ async def update_me(
     user=Depends(current_active_user),
     user_manager: BaseUserManager = Depends(get_user_manager),
 ):
-    update_dict = user_update.create_update_dict()
-
-    update_dict.pop("email", None)
-    update_dict.pop("is_verified", None)
-    update_dict.pop("is_superuser", None)
-    update_dict.pop("is_active", None)
+    
 
     try:
         updated_user = await user_manager.update(
-            update_dict,
+            user_update,
             user,
             safe=True,
             request=None,

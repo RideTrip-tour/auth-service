@@ -57,3 +57,4 @@ build/
 # Additional
 *.tar.gz
 *.zip
+entrypoint_mine.sh

@@ -56,25 +56,25 @@ start_api() {
 }
 
 # ---------- Swarm secrets (если используются) ----------
-# if [ -n "$DB_AUTH_SERVICE_HOST_FILE" ]; then
-#   DB_HOST=$(cat "$DB_AUTH_SERVICE_HOST_FILE")
-# fi
+if [ -n "${DB_AUTH_SERVICE_HOST_FILE:-}" ]; then
+  DB_HOST=$(cat "$DB_AUTH_SERVICE_HOST_FILE")
+fi
 
-# if [ -n "$DB_AUTH_SERVICE_PORT_FILE" ]; then
-#   DB_PORT=$(cat "$DB_AUTH_SERVICE_PORT_FILE")
-# fi
+if [ -n "${DB_AUTH_SERVICE_PORT_FILE:-}" ]; then
+  DB_PORT=$(cat "$DB_AUTH_SERVICE_PORT_FILE")
+fi
 
-# if [ -n "$DB_AUTH_SERVICE_USER_FILE" ]; then
-#   DB_USER=$(cat "$DB_AUTH_SERVICE_USER_FILE")
-# fi
+if [ -n "${DB_AUTH_SERVICE_USER_FILE:-}" ]; then
+  DB_USER=$(cat "$DB_AUTH_SERVICE_USER_FILE")
+fi
 
-# if [ -n "$REDIS_HOST_FILE" ]; then
-#   REDIS_HOST=$(cat "$REDIS_HOST_FILE")
-# fi
+if [ -n "${REDIS_HOST_FILE:-}" ]; then
+  REDIS_HOST=$(cat "$REDIS_HOST_FILE")
+fi
 
-# if [ -n "$REDIS_PORT_FILE" ]; then
-#   REDIS_PORT=$(cat "$REDIS_PORT_FILE")
-# fi
+if [ -n "${REDIS_PORT_FILE:-}" ]; then
+  REDIS_PORT=$(cat "$REDIS_PORT_FILE")
+fi
 
 
 # ---------- Ожидание сервисов ----------
