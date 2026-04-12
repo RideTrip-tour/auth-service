@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.routes.token import token_router
 from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdateEmail, UserUpdatePassword
-from app.services.users import auth_backend, fastapi_users, google_oauth_client
+from app.services.users import auth_backend, fastapi_users
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
@@ -34,18 +34,6 @@ app.include_router(
     prefix=f"/api/{settings.app_name.split('-')[0]}",
     tags=["auth"],
 )
-
-# app.include_router(
-#     fastapi_users.get_oauth_router(
-#         google_oauth_client,
-#         auth_backend,
-#         settings.jwt_secret,
-#         associate_by_email=True,
-#         is_verified_by_default=True,
-#     ),
-#     prefix="/api/auth/google",
-#     tags=["auth"],
-# )
 
 app.include_router(
     fastapi_users.get_users_router(
