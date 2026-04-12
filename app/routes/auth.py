@@ -19,7 +19,6 @@ def get_auth_router(
         get_current_user_token = authenticator.current_user_token(
         active=True, verified=requires_verification
     )
-
         login_responses: OpenAPIResponseType = {
             status.HTTP_400_BAD_REQUEST: {
                 "model": ErrorModel,
