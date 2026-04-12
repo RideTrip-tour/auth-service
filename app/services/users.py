@@ -67,10 +67,17 @@ class JWTStrategyCustom(JWTStrategy):
                 if token:
                     await token_db.delete_by_token(token)
 
-class FastAPIUsersCustomRegister(
+    async def destroy_tokens_by_user(self, user: models.UP) -> None:
+        async with AsyncSessionLocal() as session:
+            if user:
+                async with session.begin():
+                    token_db = SQLAlchemyRefreshTokenDatabase(session)
+                    await token_db.delete_by_user_id(user.id)
+
+class FastAPIUsersCustom(
     FastAPIUsers[models.UP, models.ID], Generic[models.UP, models.ID]
 ):
-    """Переопределяет Регистрацию пользователя"""
+    """Переопределенный FastAPIUsers"""
     def __init__(self, get_user_manager, auth_backends):
         super().__init__(get_user_manager, auth_backends)
         self.authenticator = CustomAuthenticator(auth_backends, get_user_manager)
@@ -118,8 +125,10 @@ class FastAPIUsersCustomRegister(
 
     def get_users_router(
         self,
+        backend: AuthenticationBackend[models.UP, models.ID],
         user_schema: type[schemas.U],
-        user_update_schema: type[schemas.UU],
+        user_update_pass_schema: type[schemas.CreateUpdateDictModel],
+        user_update_email_schema: type[schemas.CreateUpdateDictModel],
         requires_verification: bool = False,
     ) -> APIRouter:
         """
@@ -131,9 +140,11 @@ class FastAPIUsersCustomRegister(
         require the users to be verified or not. Defaults to False.
         """
         return get_users_router(
+            backend,
             self.get_user_manager,
             user_schema,
-            user_update_schema,
+            user_update_pass_schema,
+            user_update_email_schema,
             self.authenticator,
             requires_verification,
         )
@@ -142,6 +153,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
     verification_token_lifetime_seconds = 10 * 60  #  Токен живет 10 минут.
+    chage_eamil_token_audience = 'fastapi-users:change_email'
 
     async def on_after_register(self, user: User, request: Request | None = None):
         logger.info(f"Пользователь {user.id} Зарегистрировался.")
@@ -168,15 +180,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         для регистрации пользователя.
         """
         user_dict["aud"] = self.verification_token_audience
+        user_dict['type'] = "register"
         verify_token = generate_jwt(
             user_dict,
             self.verification_token_secret,
             self.verification_token_lifetime_seconds,
         )
-        link = f"{settings.origin}/{settings.lk_path}?verufy_token={verify_token}"
+        link = f"{settings.origin}/{settings.lk_path}?verify_token={verify_token}"
         await send_email(
             user_dict["email"],
-            "Подтвержжение регистрации",
+            "Подтверждение регистрации",
             f"""
             Доброго времени суток!
 
@@ -202,14 +215,25 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         try:
             aud = data.pop("aud")
-            email = data["email"]
+            type_operation = data.pop('type')
             data.pop("exp")
         except KeyError:
             raise exceptions.InvalidVerifyToken()
 
         if aud != self.verification_token_audience:
             raise exceptions.InvalidVerifyToken()
-
+        
+        if type_operation == 'register':
+            created_user = await self.register_user(data)
+            return created_user
+        
+        if type_operation == 'change_email':
+            response = await self.change_email(data)
+            return response
+        raise exceptions.InvalidVerifyToken()
+            
+    async def register_user(self, data: dict) -> models.UP:
+        email = data["email"]
         existing_user = await self.user_db.get_by_email(email)
         if existing_user is not None:
             raise exceptions.UserAlreadyExists()
@@ -217,9 +241,21 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         data["is_verified"] = True
 
         created_user = await self.user_db.create(data)
-
         return created_user
-
+    
+    async def change_email(self, data: dict):
+        new_email = data["new_email"]
+        current_email = data["current_email"]
+        user = await self.user_db.get_by_email(current_email)
+        if user is None:
+            raise exceptions.UserNotExists()
+        existing_user = await self.user_db.get_by_email(new_email)
+        if existing_user is not None:
+            raise exceptions.UserAlreadyExists()
+        
+        updated_user = await self.user_db.update(user, {'email': new_email})
+        return updated_user
+        
     async def create(self, user_create, safe=False, request=None):
         user_create.is_superuser = False
         return await super().create(user_create, safe, request)
@@ -229,6 +265,23 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
 
+    async def on_after_reset_password(
+        self, user: models.UP, request: Request | None = None
+    ) -> None:
+        await send_email(
+            user.email,
+            "Пароль успешно изменен.",
+            """
+            Доброго времени суток!
+
+            Ваш пароль успешно изменен
+            """,
+        )
+        logger.info(
+            f"Пользователь {user.id} обновbл пароль."
+        )
+        return
+    
 
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
@@ -326,7 +379,6 @@ class CustomAuthenticator(Authenticator[User, int]):
         if superuser:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         return await super()._authenticate(
-            self,
             *args,
             user_manager=user_manager,
             optional=optional,
@@ -383,6 +435,6 @@ auth_backend = AuthenticationBackendCustom(
     session_factory=AsyncSessionLocal,
 )
 
-fastapi_users = FastAPIUsersCustomRegister[User, int](get_user_manager, [auth_backend])
+fastapi_users = FastAPIUsersCustom[User, int](get_user_manager, [auth_backend])
 
 current_active_user = fastapi_users.current_user(active=True)

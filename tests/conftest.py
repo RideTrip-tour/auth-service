@@ -45,6 +45,7 @@ class MockUserDb:
 
     def __init__(self):
         self.get_by_email_result = None
+        self.get_by_email_map = {}
         self.create_result = MagicMock(
             id=1,
             email="user@example.com",
@@ -54,14 +55,37 @@ class MockUserDb:
         )
         self.create_called = False
         self.create_call_data = None
+        self.update_called = False
+        self.update_call_user = None
+        self.update_call_data = None
+        self.get_called = False
+        self.get_call_id = None
+        self.get_result = None
+        self.get_by_email_calls = []
 
     async def get_by_email(self, email: str):
+        self.get_by_email_calls.append(email)
+        if email in self.get_by_email_map:
+            return self.get_by_email_map[email]
         return self.get_by_email_result
 
     async def create(self, data: dict):
         self.create_called = True
         self.create_call_data = data
         return self.create_result
+
+    async def update(self, user, data: dict):
+        self.update_called = True
+        self.update_call_user = user
+        self.update_call_data = data
+        for key, value in data.items():
+            setattr(user, key, value)
+        return user
+
+    async def get(self, user_id):
+        self.get_called = True
+        self.get_call_id = user_id
+        return self.get_result
 
 
 @pytest.fixture
