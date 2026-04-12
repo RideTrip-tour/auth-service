@@ -63,11 +63,25 @@ uvicorn main:app --reload
 
 - [`docs/registration-verification.md`](docs/registration-verification.md)
 - [`docs/auth-flow.md`](docs/auth-flow.md)
+- [`docs/cookie-policy.md`](docs/cookie-policy.md)
 - [`docs/user-management.md`](docs/user-management.md)
+
+## Cookie policy
+
+Сервис использует два HttpOnly cookie:
+
+- `access_token` - короткоживущий JWT для авторизации API-запросов;
+- refresh token cookie - хранится отдельно и используется для обновления сессии и logout.
+
+Параметры cookie зависят от режима запуска и настроек сервиса:
+
+- `HttpOnly` включён;
+- `Secure` включается в production;
+- для access и refresh cookie используются разные `path`;
+- refresh token привязан к БД и удаляется при logout и смене пароля.
 
 ## Тесты
 
 ```bash
 DEBUG=false python -m pytest -q
 ```
-
