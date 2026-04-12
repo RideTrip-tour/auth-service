@@ -152,7 +152,7 @@ class FastAPIUsersCustom(
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
-    verification_token_lifetime_seconds = 10 * 60  #  Токен живет 10 минут.
+    verification_token_lifetime_seconds = 60 * 60  #  Токен живет 1 час.
     chage_eamil_token_audience = 'fastapi-users:change_email'
 
     async def on_after_register(self, user: User, request: Request | None = None):
