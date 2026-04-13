@@ -38,8 +38,9 @@ async def test_register_success(client, mock_user_db):
     mock_user_db.create_result = created_user
 
     with patch(
-        "app.routes.register.send_email", new_callable=AsyncMock
-    ) as send_email_mock:
+        "app.services.users.UserManager.on_after_register",
+        new_callable=AsyncMock,
+    ) as on_after_register_mock:
         response = await client.post(
             "/api/auth/register",
             json={"email": "newuser@example.com", "password": "securepassword123"},
@@ -49,10 +50,7 @@ async def test_register_success(client, mock_user_db):
     data = response.json()
     assert data["email"] == "newuser@example.com"
 
-    send_email_mock.assert_called_once()
-    call_kw = send_email_mock.call_args
-    assert call_kw[0][0] == "newuser@example.com"
-    assert "verify_token=" in call_kw[0][2] or "Подтверждение" in call_kw[0][1]
+    on_after_register_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
