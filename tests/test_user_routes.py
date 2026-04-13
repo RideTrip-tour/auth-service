@@ -136,7 +136,7 @@ async def test_change_password_rejects_bad_current_password(app):
             )
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "RESET_PASSWORD_INVALID_PASSWORD"
+    assert exc_info.value.detail == "UPDATE_USER_INVALID_PASSWORD"
     verify_password_mock.assert_called_once_with(
         user_update.current_password, user.hashed_password
     )
