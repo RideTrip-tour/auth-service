@@ -1,6 +1,7 @@
 import logging
 from typing import Generic
-
+from pydantic import ValidationError
+import re
 import jwt
 from fastapi import APIRouter, Depends, Response, Request, status
 from fastapi_users import (
@@ -20,6 +21,7 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
+from fastapi_users.exceptions import InvalidEmailException
 from pydantic import EmailStr, TypeAdapter
 
 from app.db.database import AsyncSessionLocal, get_user_db

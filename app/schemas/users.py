@@ -1,9 +1,9 @@
-import re
 
 from fastapi_users import schemas
 from pydantic import EmailStr, field_validator, TypeAdapter
 
 email_adapter = TypeAdapter(EmailStr)
+
 
 class UserRead(schemas.BaseUser[int]):
     pass

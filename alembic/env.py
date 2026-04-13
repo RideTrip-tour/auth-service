@@ -1,3 +1,5 @@
+from app.db.base import Base
+from config import settings as se
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -10,9 +12,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.db.base import Base
 from app.db.models import *  # noqa
-from config import settings as se
 
 target_metadata = Base.metadata
 
