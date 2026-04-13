@@ -152,32 +152,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
     async def validate_email(self, email: str, user: schemas.UC | models.UP) -> None:
         if not email or not email.strip():
-            raise InvalidEmailException(reason="Email не может быть пустым.")
+            raise ValueError("Email не может быть пустым.")
         if len(email) > 255:
-            raise InvalidEmailException(
-                reason="Email должен содержать не более 255 символов."
-            )
+            raise ValueError("Email должен содержать не более 255 символов.")
         if any(ch.isspace() for ch in email):
-            raise InvalidEmailException(
-                reason="Email не должен содержать пробельные символы."
-            )
+            raise ValueError("Email не должен содержать пробельные символы.")
         if "@" in email:
             local_part = email.split("@", 1)[0]
             if len(local_part) > 64:
-                raise InvalidEmailException(
-                    reason="Локальная часть email должна содержать не более 64 символов."
-                )
+                raise ValueError("Локальная часть email должна содержать не более 64 символов.")
 
         try:
             normalized_email = str(email_adapter.validate_python(email))
         except ValidationError as exc:
-            raise InvalidEmailException(reason="Некорректный формат email.") from exc
+            raise ValueError("Некорректный формат email.")
 
         domain = normalized_email.rsplit("@", 1)[1]
         if re.search(r"[А-Яа-яЁё]", domain):
-            raise InvalidEmailException(
-                reason="Доменная часть email не должна содержать кириллицу."
-            )
+            raise ValueError("Доменная часть email не должна содержать кириллицу.")
 
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
