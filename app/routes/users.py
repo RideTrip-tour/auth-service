@@ -97,9 +97,11 @@ def get_users_router(
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
         strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
-        if not await user_manager.verify_password(
-            user_update_pass_schema.current_password, user.hashed_password
-            ):
+        valid_password, _ = user_manager.password_helper.verify_and_update(
+            user_update_pass_schema.current_password,
+            user.hashed_password,
+        )
+        if not valid_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.RESET_PASSWORD_INVALID_PASSWORD,
@@ -153,9 +155,11 @@ def get_users_router(
         user: models.UP = Depends(get_current_active_user),
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
     ):
-        if not await user_manager.verify_password(
-            user_update_email_schema.password, user.hashed_password
-            ):
+        valid_password, _ = user_manager.password_helper.verify_and_update(
+            user_update_email_schema.password,
+            user.hashed_password,
+        )
+        if not valid_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
@@ -165,7 +169,10 @@ def get_users_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
                 )
-        if await user_manager.get_by_email(user_update_email_schema.new_email):
+        existing_user = await user_manager.user_db.get_by_email(
+            user_update_email_schema.new_email
+        )
+        if existing_user is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.REGISTER_USER_ALREADY_EXISTS,

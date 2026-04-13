@@ -1,7 +1,7 @@
 """Тесты новых user-flows: смена пароля и запрос смены email."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
 import pytest
@@ -63,14 +63,19 @@ async def test_change_password_success(app):
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = SimpleNamespace(
-        verify_password=AsyncMock(return_value=True),
-        update=AsyncMock(return_value=user),
-        on_after_reset_password=AsyncMock(),
-    )
+    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
 
-    with patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock:
+    with (
+        patch.object(
+            user_manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ) as verify_password_mock,
+        patch.object(user_manager, "update", new=AsyncMock(return_value=user)) as update_mock,
+        patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
+        patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock,
+    ):
         response = await route.endpoint(
             request=request,
             user_update_pass_schema=user_update,
@@ -80,11 +85,11 @@ async def test_change_password_success(app):
         )
 
     assert response == {"status": "Пароль обновлен, нужна повторная авторизация"}
-    user_manager.verify_password.assert_awaited_once_with(
+    verify_password_mock.assert_called_once_with(
         user_update.current_password, user.hashed_password
     )
-    user_manager.update.assert_awaited_once_with(user_update, user)
-    user_manager.on_after_reset_password.assert_awaited_once_with(user, request)
+    update_mock.assert_awaited_once_with(user_update, user)
+    on_after_reset_password_mock.assert_awaited_once_with(user, request)
     logout_mock.assert_awaited_once()
     assert logout_mock.await_args.args[0] is strategy
     assert logout_mock.await_args.args[1] is user
@@ -109,31 +114,39 @@ async def test_change_password_rejects_bad_current_password(app):
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = SimpleNamespace(
-        verify_password=AsyncMock(return_value=False),
-        update=AsyncMock(),
-        on_after_reset_password=AsyncMock(),
-    )
+    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
 
-    with pytest.raises(HTTPException) as exc_info:
-        await route.endpoint(
-            request=request,
-            user_update_pass_schema=user_update,
-            user=user,
-            user_manager=user_manager,
-            strategy=strategy,
-        )
+    with (
+        patch.object(
+            user_manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(False, None)),
+        ) as verify_password_mock,
+        patch.object(user_manager, "update", new=AsyncMock()) as update_mock,
+        patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await route.endpoint(
+                request=request,
+                user_update_pass_schema=user_update,
+                user=user,
+                user_manager=user_manager,
+                strategy=strategy,
+            )
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "RESET_PASSWORD_INVALID_PASSWORD"
-    user_manager.update.assert_not_awaited()
-    user_manager.on_after_reset_password.assert_not_awaited()
+    verify_password_mock.assert_called_once_with(
+        user_update.current_password, user.hashed_password
+    )
+    update_mock.assert_not_awaited()
+    on_after_reset_password_mock.assert_not_awaited()
     strategy.destroy_tokens_by_user.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_sends_verification_link(app):
+async def test_request_change_email_sends_verification_link(app, mock_user_db):
     """Запрос смены email должен отправить письмо с токеном подтверждения."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -149,15 +162,19 @@ async def test_request_change_email_sends_verification_link(app):
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = SimpleNamespace(
-        verify_password=AsyncMock(return_value=True),
-        get_by_email=AsyncMock(return_value=None),
-        verification_token_secret=settings.jwt_secret,
-        verification_token_lifetime_seconds=600,
-        verification_token_audience=VERIFY_USER_TOKEN_AUDIENCE,
-    )
+    user_manager = UserManager(mock_user_db)
 
-    with patch("app.routes.users.send_email", new_callable=AsyncMock) as send_email_mock:
+    with (
+        patch.object(
+            user_manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ) as verify_password_mock,
+        patch.object(
+            mock_user_db, "get_by_email", new=AsyncMock(wraps=mock_user_db.get_by_email)
+        ) as get_by_email_mock,
+        patch("app.routes.users.send_email", new_callable=AsyncMock) as send_email_mock,
+    ):
         response = await route.endpoint(
             request=SimpleNamespace(),
             user_update_email_schema=user_update,
@@ -168,10 +185,8 @@ async def test_request_change_email_sends_verification_link(app):
     assert response == {
         "status": "Подтвержение смены email отправлено, тербуется подтверждение."
     }
-    user_manager.verify_password.assert_awaited_once_with(
-        user_update.password, user.hashed_password
-    )
-    user_manager.get_by_email.assert_awaited_once_with(user_update.new_email)
+    verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
+    get_by_email_mock.assert_awaited_once_with(user_update.new_email)
     send_email_mock.assert_awaited_once()
     recipient, subject, body = send_email_mock.call_args.args
     assert recipient == user.email
@@ -191,7 +206,7 @@ async def test_request_change_email_sends_verification_link(app):
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_rejects_wrong_current_email(app):
+async def test_request_change_email_rejects_wrong_current_email(app, mock_user_db):
     """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -207,22 +222,27 @@ async def test_request_change_email_rejects_wrong_current_email(app):
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = SimpleNamespace(
-        verify_password=AsyncMock(return_value=True),
-        get_by_email=AsyncMock(),
-        verification_token_secret=settings.jwt_secret,
-        verification_token_lifetime_seconds=600,
-        verification_token_audience=VERIFY_USER_TOKEN_AUDIENCE,
-    )
+    user_manager = UserManager(mock_user_db)
 
-    with pytest.raises(HTTPException) as exc_info:
-        await route.endpoint(
-            request=SimpleNamespace(),
-            user_update_email_schema=user_update,
-            user=user,
-            user_manager=user_manager,
-        )
+    with (
+        patch.object(
+            user_manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ) as verify_password_mock,
+        patch.object(
+            mock_user_db, "get_by_email", new=AsyncMock(wraps=mock_user_db.get_by_email)
+        ) as get_by_email_mock,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await route.endpoint(
+                request=SimpleNamespace(),
+                user_update_email_schema=user_update,
+                user=user,
+                user_manager=user_manager,
+            )
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "LOGIN_BAD_CREDENTIALS"
-    user_manager.get_by_email.assert_not_awaited()
+    verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
+    get_by_email_mock.assert_not_awaited()
