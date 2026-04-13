@@ -14,6 +14,13 @@ from app.services.email import send_email  # noqa: E402
 from config import settings  # noqa: E402
 
 
+def _attach_caplog_to_email_logger(caplog):
+    """Attach caplog handler directly to `email` logger (works with propagate=False)."""
+    email_logger = logging.getLogger("email")
+    email_logger.addHandler(caplog.handler)
+    return email_logger
+
+
 @pytest.mark.asyncio
 async def test_send_email_debug_mode_logs_only(caplog):
     """При DEBUG=true письмо не отправляется, только логируется."""
@@ -22,9 +29,13 @@ async def test_send_email_debug_mode_logs_only(caplog):
     settings.mail_server = "smtp.example.com"
     settings.mail_from = "from@example.com"
 
-    with caplog.at_level(logging.INFO):
-        # when
-        await send_email("user@example.com", "Subject", "Body")
+    email_logger = _attach_caplog_to_email_logger(caplog)
+    try:
+        with caplog.at_level(logging.INFO, logger="email"):
+            # when
+            await send_email("user@example.com", "Subject", "Body")
+    finally:
+        email_logger.removeHandler(caplog.handler)
 
     # then
     messages: List[str] = [record.getMessage() for record in caplog.records]
@@ -39,9 +50,13 @@ async def test_send_email_missing_config_logs_warning(caplog):
     settings.mail_server = ""
     settings.mail_from = ""
 
-    with caplog.at_level(logging.WARNING):
-        # when
-        await send_email("user@example.com", "Subject", "Body")
+    email_logger = _attach_caplog_to_email_logger(caplog)
+    try:
+        with caplog.at_level(logging.WARNING, logger="email"):
+            # when
+            await send_email("user@example.com", "Subject", "Body")
+    finally:
+        email_logger.removeHandler(caplog.handler)
 
     # then
     messages: List[str] = [record.getMessage() for record in caplog.records]
