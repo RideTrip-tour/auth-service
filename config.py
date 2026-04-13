@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     # =========================
     # Database
     # =========================
-    db_host: str = "postgres"
+    db_host: str = "host.docker.internal"
     db_port: int = 5432
     db_name: str = "mydb"
     db_user: str = "postgres"
-    db_pass: str = "postgres123"
+    db_pass: str = "alemdar61"
     db_driver: str = "postgresql+asyncpg"
 
     # =========================

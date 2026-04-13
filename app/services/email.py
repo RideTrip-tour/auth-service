@@ -41,7 +41,6 @@ async def send_email(
 
     # Проверяем, что базовые настройки почты заданы
     if not settings.mail_server or not settings.mail_from:
-
         logger.warning(
             "Email settings are not configured (MAIL_SERVER / MAIL_FROM). "
             "Письмо не будет отправлено."

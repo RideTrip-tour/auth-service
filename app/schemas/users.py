@@ -11,9 +11,29 @@ class UserCreate(schemas.BaseUserCreate):
 
     @field_validator("email", mode="after")
     @classmethod
-    def validate_email_ascii(cls, value: str) -> str:
+    def validate_email(cls, value: str) -> str:
         if not value.isascii():
             raise ValueError("Email address must contain only Latin (ASCII) characters")
+
+        parts = value.rsplit("@", 1)
+        if len(parts) != 2:
+            raise ValueError("Invalid email format")
+
+        local_part, domain_part = parts
+
+        if len(domain_part) > 189:
+            raise ValueError("Domain part of email must not exceed 189 characters")
+
+        if domain_part.startswith(".") or domain_part.endswith("."):
+            raise ValueError("Invalid domain part")
+
+        labels = domain_part.split(".")
+        if any(not label for label in labels):
+            raise ValueError("Invalid domain part")
+
+        if any(len(label) > 63 for label in labels):
+            raise ValueError("Each domain label must not exceed 63 characters")
+
         return value
 
     @field_validator("password", mode="after")
