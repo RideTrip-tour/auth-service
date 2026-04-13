@@ -68,12 +68,6 @@ def get_users_router(
                 "content": {
                     "application/json": {
                         "examples": {
-                            ErrorCode.UPDATE_USER_EMAIL_ALREADY_EXISTS: {
-                                "summary": "A user with this email already exists.",
-                                "value": {
-                                    "detail": ErrorCode.UPDATE_USER_EMAIL_ALREADY_EXISTS
-                                },
-                            },
                             ErrorCode.UPDATE_USER_INVALID_PASSWORD: {
                                 "summary": "Password validation failed.",
                                 "value": {
@@ -104,7 +98,7 @@ def get_users_router(
         if not valid_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorCode.RESET_PASSWORD_INVALID_PASSWORD,
+                detail=ErrorCode.UPDATE_USER_INVALID_PASSWORD,
                 )
         await user_manager.update(user_update_pass_schema, user)
         await user_manager.on_after_reset_password(user, request)
