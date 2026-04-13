@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     mail_from_name: str = "Trip Constructor"
     mail_starttls: bool = True
     mail_ssl_tls: bool = False
+    frontend_url: str = "http://trip.com"
 
     # =========================
     # Auth

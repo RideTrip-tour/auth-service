@@ -1,5 +1,5 @@
 import logging
-from typing import Generic
+from typing import Generic,Optional
 
 from fastapi import APIRouter, Depends, Response, Request, status
 from fastapi_users import (
@@ -94,11 +94,38 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         logger.info(f"Пользователь {user.id} Зарегистрировался.")
 
     async def on_after_forgot_password(
-        self, user: User, token: str, request: Request | None = None
-    ):
-        logger.info(
-            f"Пользователь {user.id} Запросил сброс пользователя. Токен: {token}"
+        self,
+        user: User,
+        token: str,
+        request: Optional[Request] = None,
+    ) -> None:
+        reset_link = f"{settings.frontend_url}/reset-password?token={token}"
+
+        await send_email(
+            user.email,
+            "Восстановление пароля",
+            f"Перейдите по ссылке: {reset_link}",
         )
+
+    async def on_after_reset_password(
+        self,
+        user: User,
+        request: Optional[Request] = None,
+    ) -> None:
+        await send_email(
+            user.email,
+            "Пароль изменён",
+            "Ваш пароль был успешно изменён.",
+        )
+
+    async def validate_password(
+        self,
+        password: str,
+        user: User | None = None,
+    ) -> None:
+        if len(password) < 8:
+            raise ValueError("Пароль должен содержать минимум 8 символов")
+
 
     async def on_after_request_verify(
         self, user: User, token: str, request: Request | None = None
