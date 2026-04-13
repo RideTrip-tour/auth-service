@@ -1,9 +1,10 @@
 from typing import Generic
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
-from fastapi_users import FastAPIUsers, models
+from fastapi_users import FastAPIUsers, models, exceptions
 from fastapi_users.manager import BaseUserManager
 from fastapi_users.router.common import ErrorCode
+
 
 from app.schemas.password import ForgotPasswordRequest, ResetPasswordRequest
 
@@ -14,12 +15,7 @@ class FastAPIUsersCustomRegister(
 ):
     def get_reset_password_router(self) -> APIRouter:
         router = APIRouter()
-
-        @router.post(
-            "/forgot-password",
-            status_code=status.HTTP_202_ACCEPTED,
-            summary="Request password reset",
-        )
+        @router.post("/forgot-password", status_code=202)
         async def forgot_password(
             request: Request,
             payload: ForgotPasswordRequest = Body(...),
@@ -27,14 +23,17 @@ class FastAPIUsersCustomRegister(
                 self.get_user_manager
             ),
         ) -> dict[str, str]:
-            user = await user_manager.get_by_email(payload.email)
-
-            if user is not None and user.is_active:
-                await user_manager.forgot_password(user, request)
+            try:
+                user = await user_manager.get_by_email(payload.email)
+                if user.is_active:
+                    await user_manager.forgot_password(user, request)
+            except exceptions.UserNotExists:
+                pass
 
             return {
                 "message": "If the email exists, reset instructions have been sent."
             }
+
 
         @router.post(
             "/reset-password",

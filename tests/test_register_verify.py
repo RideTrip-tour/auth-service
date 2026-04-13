@@ -21,8 +21,22 @@ from config import settings  # noqa: E402
 
 @pytest.mark.asyncio
 async def test_register_success(client, mock_user_db):
-    """Успешный запрос регистрации: 204, пользователь не создаётся в БД, письмо не падает."""
+    """Успешный запрос регистрации."""
     mock_user_db.get_by_email_result = None
+
+    created_user = type(
+        "User",
+        (),
+        {
+            "id": 1,
+            "email": "newuser@example.com",
+            "is_active": True,
+            "is_superuser": False,
+            "is_verified": False,
+        },
+    )()
+    mock_user_db.create_result = created_user
+
     with patch(
         "app.services.users.send_email", new_callable=AsyncMock
     ) as send_email_mock:
@@ -30,9 +44,11 @@ async def test_register_success(client, mock_user_db):
             "/api/auth/register",
             json={"email": "newuser@example.com", "password": "securepassword123"},
         )
+
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == "newuser@example.com"
+
     send_email_mock.assert_called_once()
     call_kw = send_email_mock.call_args
     assert call_kw[0][0] == "newuser@example.com"
