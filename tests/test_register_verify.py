@@ -55,21 +55,14 @@ async def test_register_user_already_exists(client, mock_user_db):
 async def test_register_invalid_password(client, mock_user_db):
     """При ошибке валидации пароля (InvalidPasswordException) возвращается 400."""
     mock_user_db.get_by_email_result = None
-    from fastapi_users import exceptions as fu_exceptions
-
-    with patch(
-        "app.services.users.UserManager.validate_password",
-        new_callable=AsyncMock,
-        side_effect=fu_exceptions.InvalidPasswordException(reason="Password too short"),
-    ):
-        response = await client.post(
-            "/api/auth/register",
-            json={"email": "user@example.com", "password": "short"},
-        )
-    assert response.status_code == 400
-    detail = response.json()["detail"]
-    assert detail["code"] == ErrorCode.REGISTER_INVALID_PASSWORD
-    assert "reason" in detail
+    response = await client.post(
+        "/api/auth/register",
+        json={"email": "user@example.com", "password": "short"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"][0]
+    assert "msg" in detail
+    assert "Пароль должен быть более 8 и менее 100 символов" in detail["msg"]
 
 
 # --- Verify ---
