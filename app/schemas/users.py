@@ -1,14 +1,15 @@
-from fastapi_users import schemas
-from pydantic import field_validator, Field
+import re
 
+from fastapi_users import schemas
+from pydantic import EmailStr, field_validator, TypeAdapter
+
+email_adapter = TypeAdapter(EmailStr)
 
 class UserRead(schemas.BaseUser[int]):
     pass
 
 
 class UserCreate(schemas.BaseUserCreate):
-    password: str = Field(min_length=8, max_length=100)
-
     @field_validator("email", mode="after")
     @classmethod
     def validate_email(cls, value: str) -> str:
@@ -38,14 +39,17 @@ class UserCreate(schemas.BaseUserCreate):
 
     @field_validator("password", mode="after")
     @classmethod
-    def validate_password_spaces(cls, value: str) -> str:
-        if value.startswith(" ") or value.endswith(" "):
-            raise ValueError("Password cannot start or end with spaces")
-        return value
+    def validate_password(cls, password: str) -> str:
+        if any(ch.isspace() for ch in password):
+            raise ValueError("Пароль не должен содержать пробелы")
+        if 8 > len(password) or len(password) > 100:
+            raise ValueError("Пароль должен быть более 8 и менее 100 символов")
+        return password
 
 
 class UserUpdate(schemas.BaseUserUpdate):
     pass
+
 
 class UserBeforeVerify(UserRead):
     is_verified: bool = True
