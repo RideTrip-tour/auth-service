@@ -38,7 +38,7 @@ async def test_register_success(client, mock_user_db):
     mock_user_db.create_result = created_user
 
     with patch(
-        "app.services.users.send_email", new_callable=AsyncMock
+        "app.routes.register.send_email", new_callable=AsyncMock
     ) as send_email_mock:
         response = await client.post(
             "/api/auth/register",
