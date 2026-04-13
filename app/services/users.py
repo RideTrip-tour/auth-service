@@ -21,7 +21,6 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
-from fastapi_users.exceptions import InvalidEmailException
 from pydantic import EmailStr, TypeAdapter
 
 from app.db.database import AsyncSessionLocal, get_user_db
@@ -164,7 +163,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         try:
             normalized_email = str(email_adapter.validate_python(email))
-        except ValidationError as exc:
+        except ValidationError:
             raise ValueError("Некорректный формат email.")
 
         domain = normalized_email.rsplit("@", 1)[1]
