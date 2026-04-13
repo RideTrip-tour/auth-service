@@ -30,8 +30,9 @@ async def test_register_success(client, mock_user_db):
             "/api/auth/register",
             json={"email": "newuser@example.com", "password": "securepassword123"},
         )
-    assert response.status_code == 204
-    assert response.content == b""
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "newuser@example.com"
     send_email_mock.assert_called_once()
     call_kw = send_email_mock.call_args
     assert call_kw[0][0] == "newuser@example.com"

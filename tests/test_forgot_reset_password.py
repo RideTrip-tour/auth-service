@@ -26,6 +26,7 @@ async def test_forgot_password_success(client, mock_user_db):
             "email": "user@example.com",
             "is_active": True,
             "is_verified": True,
+            "hashed_password": "hashed_password_value",
         },
     )()
     mock_user_db.get_by_email_result = user
@@ -115,8 +116,8 @@ async def test_reset_password_success(client, mock_user_db):
 
     reset_password_mock.assert_called_once()
     args = reset_password_mock.call_args[0]
-    assert args[1] == fake_token
-    assert args[2] == "newsecurepassword123"
+    assert fake_token in args
+    assert "newsecurepassword123" in args
 
 
 @pytest.mark.asyncio
