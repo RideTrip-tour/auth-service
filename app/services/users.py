@@ -149,14 +149,10 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise exceptions.InvalidPasswordException(
                 reason="Пароль не должен содержать пробелы."
             )
-        
-    async def validate_email(
-        self, email: str, user: schemas.UC | models.UP
-    ) -> None:
+
+    async def validate_email(self, email: str, user: schemas.UC | models.UP) -> None:
         if not email or not email.strip():
-            raise InvalidEmailException(
-                reason="Email не может быть пустым."
-            )
+            raise InvalidEmailException(reason="Email не может быть пустым.")
         if len(email) > 255:
             raise InvalidEmailException(
                 reason="Email должен содержать не более 255 символов."
@@ -182,7 +178,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise InvalidEmailException(
                 reason="Доменная часть email не должна содержать кириллицу."
             )
-        
+
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
         try:
@@ -215,7 +211,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         return created_user
 
-   
+
 class CookieTransportCustom(CookieTransport):
     refresh_token_name = settings.refresh_token_name
     access_cookie_max_age = settings.access_token_expire_sec
