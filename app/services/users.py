@@ -224,16 +224,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         try:
             data = decrypt_token(token, settings.jwt_secret)
-            logger.info(f"Данные из токена: {data}")
-        except InvalidToken:
-            raise exceptions.InvalidVerifyToken()
+            logger.info("Данные из токена: %s", data)
+        except InvalidToken as e:
+            raise exceptions.InvalidVerifyToken() from e
 
         try:
             aud = data.pop("aud")
-            email = data["email"]
             exp = data.pop("exp")
-        except KeyError:
-            raise exceptions.InvalidVerifyToken()
+        except KeyError as e:
+            raise exceptions.InvalidVerifyToken() from e
 
         if aud != self.verification_token_audience:
             raise exceptions.InvalidVerifyToken()
@@ -242,14 +241,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         if exp < now_ts:
             raise exceptions.InvalidVerifyToken()
 
+        if "current_email" in data and "new_email" in data:
+            updated_user = await self.change_email(data)
+            await self.on_after_verify(updated_user, request)
+            return updated_user
+
+        email = data.get("email")
+        if not email:
+            raise exceptions.InvalidVerifyToken()
+
         existing_user = await self.user_db.get_by_email(email)
         if existing_user is not None:
             raise exceptions.UserAlreadyExists()
 
         data["is_verified"] = True
         created_user = await self.user_db.create(data)
+        await self.on_after_verify(created_user, request)
         return created_user
-    
+        
     async def change_email(self, data: dict):
         new_email = data["new_email"]
         current_email = data["current_email"]

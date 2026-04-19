@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.routes.token import token_router
 from app.routes.users import get_users_router
+from app.routes.auth import get_auth_router
 from app.schemas.users import (
     UserBeforeVerify,
     UserCreate,
@@ -25,7 +26,11 @@ app = FastAPI(
 )
 
 app.include_router(
-    fastapi_users.get_auth_router(auth_backend),
+    get_auth_router(
+        backend=auth_backend,
+        get_user_manager=get_user_manager,
+        authenticator=fastapi_users.authenticator,
+    ),
     prefix="/api/auth",
     tags=["auth"],
 )
