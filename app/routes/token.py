@@ -1,18 +1,11 @@
-from datetime import datetime, timezone
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
-from app.db.database import get_async_session
-from app.db.models import RefreshToken
-from app.services.users import (
-    auth_backend,
-    cookie_transport,
-    get_strategy,
+from app.db.refresh_token_database import (
+    SQLAlchemyRefreshTokenDatabase,
+    get_refresh_token_db,
 )
+from app.services.users import auth_backend, cookie_transport, get_strategy
 from config import settings
 from fastapi_users.password import PasswordHelper
 
@@ -50,7 +43,7 @@ refresh_responses: OpenAPIResponseType = {
 )
 async def refresh_token(
     request: Request,
-    session: AsyncSession = Depends(get_async_session),
+    refresh_token_db: SQLAlchemyRefreshTokenDatabase = Depends(get_refresh_token_db),
 ):
     refresh_token = request.cookies.get(settings.refresh_token_name)
 
@@ -60,18 +53,12 @@ async def refresh_token(
             detail="Missing token or inactive user.",
         )
 
-    async with session.begin():
-        result = await session.execute(
-            select(RefreshToken)
-            .options(selectinload(RefreshToken.user))
-            .where(
-                RefreshToken.token == refresh_token,
-                RefreshToken.expires_at > datetime.now(timezone.utc),
-            )
-            .with_for_update()
+    async with refresh_token_db.session.begin():
+        db_token = await refresh_token_db.get(
+            refresh_token,
+            with_user=True,
+            with_for_update=True,
         )
-
-        db_token = result.scalars().first()
 
         if not db_token:
             raise HTTPException(
@@ -79,10 +66,8 @@ async def refresh_token(
                 detail="Invalid or expired refresh token",
             )
 
-        await session.delete(db_token)
-
-        new_refresh_token = RefreshToken.create(db_token.user_id)
-        session.add(new_refresh_token)
+        await refresh_token_db.delete(db_token)
+        new_refresh_token = await refresh_token_db.create(db_token.user_id)
 
     access_token = await get_strategy().write_token(db_token.user)
 

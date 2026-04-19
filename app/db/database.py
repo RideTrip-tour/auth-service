@@ -19,7 +19,10 @@ db_url = URL.create(
     database=settings.db_name,
 )
 
-engine = create_async_engine(db_url)
+engine = create_async_engine(
+    db_url,
+    pool_pre_ping=True,
+    )
 AsyncSessionLocal = async_sessionmaker(
     engine, expire_on_commit=False, class_=AsyncSession
 )

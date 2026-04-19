@@ -1,9 +1,11 @@
 """Тесты регистрации и подтверждения (register / verify)."""
 
 import os
+import re
 import sys
 from unittest.mock import AsyncMock, patch
 
+import jwt
 import pytest
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 from datetime import datetime, timedelta, timezone
@@ -80,6 +82,20 @@ async def test_register_invalid_password(client, mock_user_db):
     assert "Пароль должен быть более 8 и менее 100 символов" in detail["msg"]
 
 
+@pytest.mark.asyncio
+async def test_register_password_with_cyrillic_rejected(client, mock_user_db):
+    """Пароль с кириллицей должен отклоняться на уровне схемы."""
+    mock_user_db.get_by_email_result = None
+    response = await client.post(
+        "/api/auth/register",
+        json={"email": "user@example.com", "password": "passwordпароль123"},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"][0]
+    assert "msg" in detail
+    assert "Пароль не должен содержать кириллицу" in detail["msg"]
+
+
 # --- Verify ---
 
 
@@ -126,6 +142,8 @@ async def test_verify_success(client, mock_user_db):
     assert mock_user_db.create_call_data["email"] == email
     assert mock_user_db.create_call_data["hashed_password"] == hashed
     assert mock_user_db.create_call_data.get("is_verified") is True
+    assert "aud" not in mock_user_db.create_call_data
+    assert "type" not in mock_user_db.create_call_data
 
 
 @pytest.mark.asyncio
@@ -166,21 +184,64 @@ async def test_verify_expired_token(client, mock_user_db):
 
 @pytest.mark.asyncio
 async def test_verify_user_already_exists(client, mock_user_db):
-    """Токен валидный, но пользователь с таким email уже есть → ошибка, пользователь не создаётся."""
-    from fastapi_users import exceptions as fu_exceptions
-
+    """Если пользователь с email уже есть, verify возвращает 400 VERIFY_USER_ALREADY_VERIFIED."""
     email = "existing@example.com"
     token = _make_verify_token(email, "hash")
     existing_user = type("User", (), {"id": 1, "email": email})()
     mock_user_db.get_by_email_result = existing_user
     mock_user_db.create_called = False
-
-    try:
-        response = await client.post("/api/auth/verify", json={"token": token})
-        # Роутер не ловит UserAlreadyExists → 500
-        assert response.status_code in (400, 500)
-    except fu_exceptions.UserAlreadyExists:
-        # В некоторых тестовых запусках исключение может пробрасываться
-        pass
-
+    response = await client.post("/api/auth/verify", json={"token": token})
+    assert response.status_code == 400
+    assert response.json()["detail"] == ErrorCode.VERIFY_USER_ALREADY_VERIFIED
     assert not mock_user_db.create_called
+
+
+def _make_change_email_token(
+    user_id: int, current_email: str, new_email: str, *, secret: str
+) -> str:
+    payload = {
+        "sub": str(user_id),
+        "current_email": current_email,
+        "new_email": new_email,
+        "aud": VERIFY_USER_TOKEN_AUDIENCE,
+        "type": "change_email",
+    }
+    return generate_jwt(payload, secret, lifetime_seconds=10 * 60)
+
+
+@pytest.mark.asyncio
+async def test_verify_change_email_success(client, mock_user_db):
+    """Токен смены email должен обновить адрес пользователя."""
+    current_email = "current@example.com"
+    new_email = "new@example.com"
+    existing_user = type(
+        "User",
+        (),
+        {
+            "id": 7,
+            "email": current_email,
+            "is_active": True,
+            "is_superuser": False,
+            "is_verified": True,
+        },
+    )()
+    mock_user_db.get_by_email_map = {
+        current_email: existing_user,
+        new_email: None,
+    }
+    token = _make_change_email_token(
+        existing_user.id,
+        current_email,
+        new_email,
+        secret=settings.jwt_secret,
+    )
+
+    response = await client.post("/api/auth/verify", json={"token": token})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == existing_user.id
+    assert data["email"] == new_email
+    assert mock_user_db.update_called
+    assert mock_user_db.update_call_user is existing_user
+    assert mock_user_db.update_call_data == {"email": new_email}

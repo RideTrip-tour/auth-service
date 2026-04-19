@@ -18,7 +18,7 @@ fakeredis==2.32.1
 fastapi==0.121.3
 fastapi-cli==0.0.16
 fastapi-cloud-cli==0.5.1
-fastapi-mail==1.4.2
+fastapi-mail==1.5.1
 fastapi-users==15.0.4
 fastapi-users-db-sqlalchemy==7.0.0
 fastar==0.6.0
