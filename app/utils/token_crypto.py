@@ -1,7 +1,7 @@
 import base64
 import hashlib
 import json
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 
 
 def _build_fernet(secret_key: str) -> Fernet:

@@ -1,7 +1,6 @@
 import logging
 from typing import Generic
 
-import jwt
 from fastapi import APIRouter, Depends, Response, Request, status
 from fastapi_users import (
     BaseUserManager,
@@ -18,7 +17,7 @@ from fastapi_users.authentication import (
     Strategy,
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
-from fastapi_users.jwt import decode_jwt, generate_jwt
+from fastapi_users.jwt import generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 from datetime import datetime, timedelta, timezone
 from app.utils.token_crypto import encrypt_token
@@ -137,7 +136,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
         )
-        
+
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         try:
             data = decrypt_token(token, settings.jwt_secret)

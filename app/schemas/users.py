@@ -5,6 +5,7 @@ from pydantic import EmailStr, field_validator, TypeAdapter
 
 email_adapter = TypeAdapter(EmailStr)
 
+
 class UserRead(schemas.BaseUser[int]):
     pass
 
@@ -29,7 +30,7 @@ class UserCreate(schemas.BaseUserCreate):
         domain = normalized_email.rsplit("@", 1)[1]
         if re.search(r"[А-Яа-яЁё]", domain):
             raise ValueError("Доменная часть email не должна содержать кириллицу.")
-        
+
         return email
 
     @field_validator("password", mode="after")

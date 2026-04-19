@@ -10,9 +10,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.db.base import Base # noqa
-from app.db.models import * # noqa
-from config import settings as se # noqa
+from app.db.base import Base  # noqa
+from app.db.models import *  # noqa
+from config import settings as se  # noqa
 
 target_metadata = Base.metadata
 
