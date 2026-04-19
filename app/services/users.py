@@ -1,6 +1,5 @@
 import logging
 from typing import Generic, Optional
-from fastapi_users.router.common import ErrorCode
 from fastapi import APIRouter, Depends, Response, Request, status,HTTPException
 from fastapi_users import (
     BaseUserManager,
