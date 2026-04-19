@@ -3,6 +3,7 @@ import logging.config
 from fastapi import FastAPI
 
 from app.routes.token import token_router
+from app.routes.users import get_users_router
 from app.schemas.users import (
     UserBeforeVerify,
     UserCreate,
@@ -10,8 +11,8 @@ from app.schemas.users import (
     UserUpdateEmail,
     UserUpdatePassword,
 )
-from app.services.users import auth_backend, google_oauth_client
 from app.services.fastapi_users_instance import fastapi_users
+from app.services.users import auth_backend, get_user_manager, google_oauth_client
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
@@ -60,11 +61,13 @@ app.include_router(
 )
 
 app.include_router(
-    fastapi_users.get_users_router(
+    get_users_router(
         backend=auth_backend,
+        get_user_manager=get_user_manager,
         user_schema=UserRead,
         user_update_pass_schema=UserUpdatePassword,
         user_update_email_schema=UserUpdateEmail,
+        authenticator=fastapi_users.authenticator,
     ),
     prefix="/api/users",
     tags=["users"],
