@@ -89,5 +89,3 @@ async def refresh_token(
     return await cookie_transport.get_login_response(
         access_token, new_refresh_token.token
     )
-
-

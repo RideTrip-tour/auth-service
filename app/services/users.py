@@ -1,5 +1,5 @@
 import logging
-from typing import Generic,Optional
+from typing import Generic, Optional
 
 from fastapi import APIRouter, Depends, Response, Request, status
 from fastapi_users import (
@@ -125,7 +125,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     ) -> None:
         if len(password) < 8:
             raise ValueError("Пароль должен содержать минимум 8 символов")
-
 
     async def on_after_request_verify(
         self, user: User, token: str, request: Request | None = None

@@ -8,6 +8,7 @@ import pytest
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 from datetime import datetime, timedelta, timezone
 from app.utils.token_crypto import encrypt_token
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)

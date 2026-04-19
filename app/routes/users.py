@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status, Request,HTTPException
+from fastapi import APIRouter, Depends, Response, status, Request, HTTPException
 from app.schemas.users import UserMeUpdate, UserRead
 from app.services.users import fastapi_users, get_user_manager
 from fastapi_users import BaseUserManager
@@ -20,7 +20,6 @@ async def update_me(
     user=Depends(current_active_user),
     user_manager: BaseUserManager = Depends(get_user_manager),
 ):
-    
 
     try:
         updated_user = await user_manager.update(

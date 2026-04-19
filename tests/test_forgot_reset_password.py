@@ -95,13 +95,16 @@ async def test_reset_password_success(client, mock_user_db):
 
     fake_token = "valid-reset-token"
 
-    with patch(
-        "app.services.users.send_email",
-        new_callable=AsyncMock,
-    ), patch(
-        "app.services.users.UserManager.reset_password",
-        new_callable=AsyncMock,
-    ) as reset_password_mock:
+    with (
+        patch(
+            "app.services.users.send_email",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "app.services.users.UserManager.reset_password",
+            new_callable=AsyncMock,
+        ) as reset_password_mock,
+    ):
         response = await client.post(
             "/api/auth/reset-password",
             json={

@@ -15,6 +15,7 @@ class FastAPIUsersCustomRegister(
 ):
     def get_reset_password_router(self) -> APIRouter:
         router = APIRouter()
+
         @router.post("/forgot-password", status_code=202)
         async def forgot_password(
             request: Request,
@@ -33,7 +34,6 @@ class FastAPIUsersCustomRegister(
             return {
                 "message": "If the email exists, reset instructions have been sent."
             }
-
 
         @router.post(
             "/reset-password",
