@@ -5,7 +5,6 @@ import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi_users.jwt import generate_jwt
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 from datetime import datetime, timedelta, timezone
 from app.utils.token_crypto import encrypt_token
