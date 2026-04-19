@@ -47,7 +47,7 @@ async def test_user_manager_update_uses_new_password(mock_user_db):
 
 
 @pytest.mark.asyncio
-async def test_change_password_success(app):
+async def test_change_password_success(app, mock_audit_log):
     """Смена пароля должна обновить пароль, разлогинить и отправить уведомление."""
     route = _get_route(app, "users:patch_pass_current_user")
     user = SimpleNamespace(
@@ -73,7 +73,7 @@ async def test_change_password_success(app):
             new=MagicMock(return_value=(True, None)),
         ) as verify_password_mock,
         patch.object(user_manager, "update", new=AsyncMock(return_value=user)) as update_mock,
-        patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
+        patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock,
         patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock,
     ):
         response = await route.endpoint(
@@ -89,16 +89,22 @@ async def test_change_password_success(app):
         user_update.current_password, user.hashed_password
     )
     update_mock.assert_awaited_once_with(user_update, user)
-    on_after_reset_password_mock.assert_awaited_once_with(user, request)
+    send_email_mock.assert_awaited_once()
     logout_mock.assert_awaited_once()
     assert logout_mock.await_args.args[0] is strategy
     assert logout_mock.await_args.args[1] is user
     assert logout_mock.await_args.args[2] == "refresh-token"
     strategy.destroy_tokens_by_user.assert_awaited_once_with(user)
+    assert mock_audit_log.await_count == 2
+    assert mock_audit_log.await_args_list[0].args[0] == "change_completed"
+    assert mock_audit_log.await_args_list[0].kwargs["user_id"] == user.id
+    assert mock_audit_log.await_args_list[0].kwargs["details"]["change_type"] == "password"
+    assert mock_audit_log.await_args_list[1].args[0] == "logout"
+    assert mock_audit_log.await_args_list[1].kwargs["user_id"] == user.id
 
 
 @pytest.mark.asyncio
-async def test_change_password_rejects_bad_current_password(app):
+async def test_change_password_rejects_bad_current_password(app, mock_audit_log):
     """Неверный current_password должен вернуть 400."""
     route = _get_route(app, "users:patch_pass_current_user")
     user = SimpleNamespace(
@@ -143,10 +149,14 @@ async def test_change_password_rejects_bad_current_password(app):
     update_mock.assert_not_awaited()
     on_after_reset_password_mock.assert_not_awaited()
     strategy.destroy_tokens_by_user.assert_not_awaited()
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "change_failed"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+    assert mock_audit_log.await_args.kwargs["details"]["change_type"] == "password"
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_sends_verification_link(app, mock_user_db):
+async def test_request_change_email_sends_verification_link(app, mock_user_db, mock_audit_log):
     """Запрос смены email должен отправить письмо с токеном подтверждения."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -203,10 +213,14 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db):
     assert payload["new_email"] == user_update.new_email
     assert payload["type"] == "change_email"
     assert payload["aud"] == VERIFY_USER_TOKEN_AUDIENCE
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "change_requested"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+    assert mock_audit_log.await_args.kwargs["details"]["change_type"] == "email"
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_rejects_wrong_current_email(app, mock_user_db):
+async def test_request_change_email_rejects_wrong_current_email(app, mock_user_db, mock_audit_log):
     """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -246,3 +260,7 @@ async def test_request_change_email_rejects_wrong_current_email(app, mock_user_d
     assert exc_info.value.detail == "LOGIN_BAD_CREDENTIALS"
     verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
     get_by_email_mock.assert_not_awaited()
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "change_failed"
+    assert mock_audit_log.await_args.kwargs["details"]["change_type"] == "email"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id

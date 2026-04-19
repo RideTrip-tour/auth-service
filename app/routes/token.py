@@ -5,6 +5,7 @@ from app.db.refresh_token_database import (
     SQLAlchemyRefreshTokenDatabase,
     get_refresh_token_db,
 )
+import app.services.audit as audit_service
 from app.services.users import auth_backend, cookie_transport, get_strategy
 from config import settings
 from fastapi_users.password import PasswordHelper
@@ -48,6 +49,12 @@ async def refresh_token(
     refresh_token = request.cookies.get(settings.refresh_token_name)
 
     if not refresh_token:
+        await audit_service.log_event(
+            audit_service.AuditEventType.SESSION_ROTATE_FAILED,
+            request=request,
+            success=False,
+            reason="missing_refresh_token",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing token or inactive user.",
@@ -61,6 +68,12 @@ async def refresh_token(
         )
 
         if not db_token:
+            await audit_service.log_event(
+                audit_service.AuditEventType.SESSION_ROTATE_FAILED,
+                request=request,
+                success=False,
+                reason="invalid_or_expired_refresh_token",
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token",
@@ -70,6 +83,12 @@ async def refresh_token(
         new_refresh_token = await refresh_token_db.create(db_token.user_id)
 
     access_token = await get_strategy().write_token(db_token.user)
+    await audit_service.log_event(
+        audit_service.AuditEventType.SESSION_ROTATED,
+        request=request,
+        user_id=db_token.user_id,
+        details={"refresh_token_id": getattr(new_refresh_token, "id", None)},
+    )
 
     return await cookie_transport.get_login_response(
         access_token, new_refresh_token.token

@@ -7,6 +7,7 @@ from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
 from app.schemas.users import StatusResponse
+import app.services.audit as audit_service
 from app.services.email import send_email
 from config import settings
 
@@ -95,6 +96,14 @@ def get_users_router(
             user.hashed_password,
         )
         if not valid_password:
+            await audit_service.log_event(
+                audit_service.AuditEventType.CHANGE_FAILED,
+                request=request,
+                user_id=user.id,
+                success=False,
+                reason="invalid_current_password",
+                details={"change_type": "password"},
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.UPDATE_USER_INVALID_PASSWORD,
@@ -104,6 +113,12 @@ def get_users_router(
         refresh_token = request.cookies.get(settings.refresh_token_name)
         await backend.logout(strategy, user, refresh_token or "")
         await strategy.destroy_tokens_by_user(user)
+        await audit_service.log_event(
+            audit_service.AuditEventType.LOGOUT,
+            request=request,
+            user_id=user.id,
+            details={"reason": "password_changed"},
+        )
         return {"status": "Пароль обновлен, нужна повторная авторизация"}
     
     @router.post(
@@ -153,11 +168,33 @@ def get_users_router(
             user.hashed_password,
         )
         if not valid_password:
+            await audit_service.log_event(
+                audit_service.AuditEventType.CHANGE_FAILED,
+                request=request,
+                user_id=user.id,
+                success=False,
+                reason="invalid_password",
+                details={
+                    "change_type": "email",
+                    "current_email": user_update_email_schema.current_email,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
                 )
         if user.email != user_update_email_schema.current_email:
+            await audit_service.log_event(
+                audit_service.AuditEventType.CHANGE_FAILED,
+                request=request,
+                user_id=user.id,
+                success=False,
+                reason="current_email_mismatch",
+                details={
+                    "change_type": "email",
+                    "current_email": user_update_email_schema.current_email,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
@@ -166,6 +203,17 @@ def get_users_router(
             user_update_email_schema.new_email
         )
         if existing_user is not None:
+            await audit_service.log_event(
+                audit_service.AuditEventType.CHANGE_FAILED,
+                request=request,
+                user_id=user.id,
+                success=False,
+                reason="email_already_exists",
+                details={
+                    "change_type": "email",
+                    "new_email": user_update_email_schema.new_email,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.REGISTER_USER_ALREADY_EXISTS,
@@ -197,6 +245,16 @@ def get_users_router(
         logger.info(
             "Пользователь запросил измнение email, отправлено письмо на почту %s.",
             user.email,
+        )
+        await audit_service.log_event(
+            audit_service.AuditEventType.CHANGE_REQUESTED,
+            request=request,
+            user_id=user.id,
+            details={
+                "change_type": "email",
+                "current_email": user_update_email_schema.current_email,
+                "new_email": user_update_email_schema.new_email,
+            },
         )
         return {"status": "Подтвержение смены email отправлено, тербуется подтверждение."}
     return router

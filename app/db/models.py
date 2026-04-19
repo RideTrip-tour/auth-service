@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
 import secrets
-from sqlalchemy import DateTime, ForeignKey, func, Integer, String
+from sqlalchemy import DateTime, ForeignKey, JSON, func, Integer, String
 from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from app.db.base import Base
@@ -86,3 +86,23 @@ class RefreshToken(AuditMixin, Base):
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
         return RefreshToken(user_id=user_id, token=token, expires_at=expires_at)
+
+
+class UserActionLog(Base):
+    __tablename__ = "user_action_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    success: Mapped[bool] = mapped_column(nullable=False, default=True)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

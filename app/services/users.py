@@ -32,6 +32,7 @@ from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.routes.auth import get_auth_router
 from app.routes.register import get_register_router, get_verify_router
 from app.routes.users import get_users_router
+import app.services.audit as audit_service
 from app.services.email import send_email
 from config import settings
 
@@ -160,6 +161,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
     async def on_after_register(self, user: User, request: Request | None = None):
         logger.info(f"Пользователь {user.id} Зарегистрировался.")
+        await audit_service.log_event(
+            audit_service.AuditEventType.REGISTERED,
+            request=request,
+            user_id=user.id,
+        )
 
     async def on_after_forgot_password(
         self,
@@ -173,6 +179,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user.email,
             "Восстановление пароля",
             f"Перейдите по ссылке: {reset_link}",
+        )
+        await audit_service.log_event(
+            audit_service.AuditEventType.PASSWORD_RESET_REQUESTED,
+            request=request,
+            user_id=user.id,
+            details={"token_length": len(token)},
         )
 
 
@@ -189,6 +201,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     ):
         logger.info(
             f"Пользователь {user.id} запросил активацию аккаунта. Токен: {token}"
+        )
+        await audit_service.log_event(
+            audit_service.AuditEventType.VERIFICATION_REQUESTED,
+            request=request,
+            user_id=user.id,
+            details={"token_length": len(token)},
         )
 
     async def on_before_register(self, user_dict: dict, request: Request | None = None):
@@ -252,7 +270,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         existing_user = await self.user_db.get_by_email(email)
         if existing_user is not None:
-            raise ErrorCode.VERIFY_USER_ALREADY_VERIFIED
+            raise exceptions.UserAlreadyVerified()
 
         data["is_verified"] = True
         created_user = await self.user_db.create(data)
@@ -271,7 +289,19 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         
         updated_user = await self.user_db.update(user, {'email': new_email})
         return updated_user
-        
+
+    async def on_after_login(
+        self,
+        user: models.UP,
+        request: Request | None = None,
+        response: Response | None = None,
+    ) -> None:
+        await audit_service.log_event(
+            audit_service.AuditEventType.LOGIN_SUCCESS,
+            request=request,
+            user_id=user.id,
+        )
+    
     async def create(self, user_create, safe=False, request=None):
         user_create.is_superuser = False
         return await super().create(user_create, safe, request)
@@ -295,6 +325,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         logger.info(
             f"Пользователь {user.id} обновbл пароль."
+        )
+        await audit_service.log_event(
+            audit_service.AuditEventType.CHANGE_COMPLETED,
+            request=request,
+            user_id=user.id,
+            details={"change_type": "password"},
         )
         return
     
@@ -422,6 +458,11 @@ class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
             async with session.begin():
                 token_db = SQLAlchemyRefreshTokenDatabase(session)
                 refresh_token = await token_db.create(user.id)
+        await audit_service.log_event(
+            audit_service.AuditEventType.SESSION_CREATED,
+            user_id=user.id,
+            details={"refresh_token_id": getattr(refresh_token, "id", None)},
+        )
         return await self.transport.get_login_response(
             access_token, refresh_token.token
         )
