@@ -1,6 +1,6 @@
 import logging
 from typing import Generic, Optional
-
+from fastapi_users.router.common import ErrorCode
 from fastapi import APIRouter, Depends, Response, Request, status,HTTPException
 from fastapi_users import (
     BaseUserManager,
@@ -252,7 +252,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         existing_user = await self.user_db.get_by_email(email)
         if existing_user is not None:
-            raise exceptions.UserAlreadyExists()
+            raise ErrorCode.VERIFY_USER_ALREADY_VERIFIED
 
         data["is_verified"] = True
         created_user = await self.user_db.create(data)

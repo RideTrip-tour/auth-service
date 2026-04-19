@@ -3,7 +3,6 @@
 import os
 import sys
 from unittest.mock import AsyncMock, patch
-from fastapi_users.jwt import generate_jwt
 import jwt
 import pytest
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
@@ -196,7 +195,10 @@ async def test_verify_user_already_exists(client, mock_user_db):
 
 
 def _make_change_email_token(
-    user_id: int, current_email: str, new_email: str, *, secret: str
+    user_id: int,
+    current_email: str,
+    new_email: str,
+    secret: str,
 ) -> str:
     payload = {
         "sub": str(user_id),
@@ -204,8 +206,9 @@ def _make_change_email_token(
         "new_email": new_email,
         "aud": VERIFY_USER_TOKEN_AUDIENCE,
         "type": "change_email",
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=10)).timestamp()),
     }
-    return generate_jwt(payload, secret, lifetime_seconds=10 * 60)
+    return encrypt_token(payload, secret)
 
 
 @pytest.mark.asyncio
