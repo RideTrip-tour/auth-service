@@ -13,6 +13,36 @@
 - запрос смены email с подтверждением по ссылке;
 - OAuth2-вход через внешнего провайдера;
 - защищённые эндпоинты для авторизованных пользователей.
+- аудит auth/session-событий в таблице `user_action_logs`.
+
+## Что логируется
+
+Сервис пишет audit-записи в `user_action_logs` для auth/session-событий:
+
+- успешный и неуспешный login;
+- создание новой активной сессии при login;
+- успешная и неуспешная ротация refresh token при refresh;
+- logout;
+- запрос смены пароля или email, ошибка и подтверждение изменения;
+- регистрация, запрос верификации и запрос сброса пароля.
+
+Каждая запись содержит:
+
+- `event_type`;
+- `user_id`, если он известен;
+- `success`;
+- `reason` для ошибок;
+- `details` с дополнительным контекстом;
+- `created_at`.
+
+В `details` кладутся данные запроса и прикладной контекст события:
+
+- `method`, `path`, `ip_address`, `user_agent`;
+- `change_type=password|email` для операций смены учетных данных;
+- `refresh_token_id` для ротации сессии;
+- `current_email`, `new_email` и другие поля, относящиеся к событию.
+
+IP для audit приходит из заголовка, который выставляет gateway при проксировании запроса.
 
 ## Быстрый старт
 
@@ -49,6 +79,7 @@ uvicorn main:app --reload
 - [`app/routes/auth.py`](app/routes/auth.py) - login/logout;
 - [`app/routes/users.py`](app/routes/users.py) - пользовательские операции над текущим аккаунтом;
 - [`app/db/models.py`](app/db/models.py) - таблицы пользователей и refresh token;
+- [`app/services/audit.py`](app/services/audit.py) - запись событий пользователя в audit-таблицу;
 - [`app/schemas/users.py`](app/schemas/users.py) - Pydantic-схемы запросов и ответов.
 
 ## Модель данных
@@ -58,6 +89,8 @@ uvicorn main:app --reload
 - `User` - аккаунт пользователя, JWT/верификация завязаны на email, пароль и флаги активности;
 - `OAuthAccount` - привязанные OAuth-аккаунты;
 - `RefreshToken` - refresh token, сохранённый в БД и связанный с пользователем.
+- `UserActionLog` - журнал действий пользователя: логин, логаут, refresh, смена пароля и email.
+- для смены пароля и email используются общие `change_requested`, `change_failed`, `change_completed`, а тип изменения лежит в `details.change_type`.
 
 Подробности по токенам, верификации и пользовательским эндпоинтам вынесены в отдельные файлы:
 

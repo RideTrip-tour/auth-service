@@ -6,6 +6,7 @@ from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
+import app.services.audit as audit_service
 from config import settings
 
 def get_auth_router(
@@ -56,11 +57,26 @@ def get_auth_router(
             user = await user_manager.authenticate(credentials)
 
             if user is None or not user.is_active:
+                await audit_service.log_event(
+                    audit_service.AuditEventType.LOGIN_FAILED,
+                    request=request,
+                    success=False,
+                    reason="bad_credentials",
+                    details={"username": credentials.username},
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
                 )
             if requires_verification and not user.is_verified:
+                await audit_service.log_event(
+                    audit_service.AuditEventType.LOGIN_FAILED,
+                    request=request,
+                    user_id=user.id,
+                    success=False,
+                    reason="user_not_verified",
+                    details={"username": credentials.username},
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorCode.LOGIN_USER_NOT_VERIFIED,
@@ -86,6 +102,13 @@ def get_auth_router(
         ):
             user, _access_token = user_token
             refresh_token = request.cookies.get(settings.refresh_token_name)
-            return await backend.logout(strategy, user, refresh_token or "")
+            response = await backend.logout(strategy, user, refresh_token or "")
+            await audit_service.log_event(
+                audit_service.AuditEventType.LOGOUT,
+                request=request,
+                user_id=user.id,
+                details={"refresh_token_present": bool(refresh_token)},
+            )
+            return response
 
         return router

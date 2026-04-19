@@ -130,7 +130,7 @@ async def test_refresh_sets_new_access_and_refresh_cookies(transport):
 
 
 @pytest.mark.asyncio
-async def test_login_sets_cookies(client, mock_user_db, transport):
+async def test_login_sets_cookies(client, mock_user_db, transport, mock_audit_log):
     existing = type(
         "User", (), {"id": 1, "email": "user@example.com", "hashed_password": ""}
     )()
@@ -158,3 +158,5 @@ async def test_login_sets_cookies(client, mock_user_db, transport):
 
     assert access_cookie is not None
     assert refresh_cookie is not None
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "login_success"

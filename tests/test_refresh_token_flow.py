@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from app.services.users import auth_backend, get_strategy
 
@@ -29,8 +30,26 @@ class _FakeSessionFactory:
         return _AsyncContextManager(_FakeSession())
 
 
+class _FakeRefreshTokenSession:
+    def begin(self):
+        return _AsyncContextManager()
+
+
+class _FakeRefreshTokenDb:
+    def __init__(self, token_record, new_token):
+        self.session = _FakeRefreshTokenSession()
+        self.token_record = token_record
+        self.get = AsyncMock(return_value=token_record)
+        self.delete = AsyncMock()
+        self.create = AsyncMock(return_value=new_token)
+
+
+def _get_route(app, name: str):
+    return next(route for route in app.routes if getattr(route, "name", None) == name)
+
+
 @pytest.mark.asyncio
-async def test_login_creates_refresh_token_without_deleting_existing_ones():
+async def test_login_creates_refresh_token_without_deleting_existing_ones(mock_audit_log):
     """Login должен создавать новый refresh token, но не удалять старые."""
     user = SimpleNamespace(id=10, is_verified=True, is_superuser=False)
     strategy = get_strategy()
@@ -49,10 +68,13 @@ async def test_login_creates_refresh_token_without_deleting_existing_ones():
     assert response.status_code == 204
     fake_token_db.create.assert_awaited_once_with(user.id)
     fake_token_db.delete_by_user_id.assert_not_called()
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "session_created"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
 
 
 @pytest.mark.asyncio
-async def test_destroy_token_deletes_only_current_token():
+async def test_destroy_token_deletes_only_current_token(mock_audit_log):
     """destroy_token должен удалять только токен, который ему передали."""
     user = SimpleNamespace(id=10, is_verified=True, is_superuser=False)
     fake_token_db = SimpleNamespace(delete_by_token=AsyncMock())
@@ -64,10 +86,11 @@ async def test_destroy_token_deletes_only_current_token():
         await strategy.destroy_token("current.refresh.token", user)
 
     fake_token_db.delete_by_token.assert_awaited_once_with("current.refresh.token")
+    mock_audit_log.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_logout_uses_refresh_cookie_for_token_deletion(app):
+async def test_logout_uses_refresh_cookie_for_token_deletion(app, mock_audit_log):
     """Logout должен брать refresh token из cookie и передавать его в backend.logout."""
     user = SimpleNamespace(
         id=11,
@@ -101,3 +124,67 @@ async def test_logout_uses_refresh_cookie_for_token_deletion(app):
     logout_mock.assert_awaited_once()
     assert logout_mock.await_args.args[2] == "logout.refresh.token"
     assert logout_mock.await_args.args[1] == user
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "logout"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+
+
+@pytest.mark.asyncio
+async def test_login_route_logs_failed_auth_attempt(app, mock_audit_log):
+    """Неудачный логин должен писать audit-событие с причиной."""
+    route = _get_route(app, "auth:cookie.login")
+    request = SimpleNamespace()
+    user_manager = SimpleNamespace(authenticate=AsyncMock(return_value=None))
+    strategy = get_strategy()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await route.endpoint(
+            request=request,
+            credentials=SimpleNamespace(username="user@example.com"),
+            user_manager=user_manager,
+            strategy=strategy,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "LOGIN_BAD_CREDENTIALS"
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "login_failed"
+    assert mock_audit_log.await_args.kwargs["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_route_logs_session_rotation(app, mock_audit_log):
+    """Успешный refresh должен писать событие rotation новой активной сессии."""
+    route = _get_route(app, "token:refresh_token")
+    user = SimpleNamespace(id=12, is_verified=True, is_superuser=False)
+    db_token = SimpleNamespace(user_id=user.id, user=user)
+    new_token = SimpleNamespace(id=99, token="new.refresh.token")
+    fake_db = _FakeRefreshTokenDb(db_token, new_token)
+    request = SimpleNamespace(cookies={"refresh_token": "current.refresh.token"})
+
+    response = await route.endpoint(request=request, refresh_token_db=fake_db)
+
+    assert response.status_code == 204
+    fake_db.get.assert_awaited_once()
+    fake_db.delete.assert_awaited_once_with(db_token)
+    fake_db.create.assert_awaited_once_with(user.id)
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "session_rotated"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+
+
+@pytest.mark.asyncio
+async def test_refresh_route_logs_failed_rotation_without_cookie(app, mock_audit_log):
+    """Если refresh cookie отсутствует, это тоже должно попасть в audit."""
+    route = _get_route(app, "token:refresh_token")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await route.endpoint(
+            request=SimpleNamespace(cookies={}),
+            refresh_token_db=SimpleNamespace(),
+        )
+
+    assert exc_info.value.status_code == 401
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "session_rotate_failed"
+    assert mock_audit_log.await_args.kwargs["success"] is False

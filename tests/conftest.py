@@ -1,7 +1,7 @@
 import os
 import sys
 from typing import AsyncGenerator, Generator
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -38,6 +38,13 @@ def reset_email_settings() -> Generator[None, None, None]:
         settings.mail_from = original["mail_from"]
         settings.mail_username = original["mail_username"]
         settings.mail_password = original["mail_password"]
+
+
+@pytest.fixture(autouse=True)
+def mock_audit_log() -> Generator[AsyncMock, None, None]:
+    """Пишем audit-события в mock, чтобы тесты не требовали БД."""
+    with patch("app.services.audit.log_event", new_callable=AsyncMock) as audit_mock:
+        yield audit_mock
 
 
 class MockUserDb:
