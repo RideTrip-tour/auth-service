@@ -3,6 +3,7 @@
 import os
 import sys
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 import pytest
 
@@ -11,7 +12,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from config import settings  # noqa: E402
-from app.services.users import CookieTransportCustom  # noqa: E402
+from app.services.users import CookieTransportCustom, UserManager, get_strategy  # noqa: E402
 
 
 def _parse_set_cookie_headers(response):
@@ -38,6 +39,13 @@ def _cookie_by_name(cookies, name):
         if n == name:
             return full
     return None
+
+
+def _get_route(app, name: str):
+    for route in app.routes:
+        if getattr(route, "name", None) == name:
+            return route
+    raise AssertionError(f"Route {name!r} not found")
 
 
 @pytest.fixture
@@ -130,33 +138,46 @@ async def test_refresh_sets_new_access_and_refresh_cookies(transport):
 
 
 @pytest.mark.asyncio
-async def test_login_sets_cookies(client, mock_user_db, transport, mock_audit_log):
+async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
     existing = type(
-        "User", (), {"id": 1, "email": "user@example.com", "hashed_password": ""}
+        "User",
+        (),
+        {
+            "id": 1,
+            "email": "user@example.com",
+            "hashed_password": "",
+            "is_active": True,
+            "is_verified": True,
+        },
     )()
     mock_user_db.get_by_email_result = existing
+
     async def _fake_login(*_args, **_kwargs):
         return await transport.get_login_response("access.jwt.token", "refresh.jwt.token")
 
+    route = _get_route(app, "auth:cookie.login")
+    user_manager = UserManager(mock_user_db)
+
     with patch(
         "app.services.users.UserManager.authenticate",
-        new=AsyncMock(return_value=mock_user_db.create_result),
+        new=AsyncMock(return_value=existing),
     ), patch(
         "app.services.users.auth_backend.login",
         new=AsyncMock(side_effect=_fake_login),
     ):
-        response = await client.post(
-            "/api/auth/login", data={"username": "user@example.com", "password": ""}
+        response = await route.endpoint(
+            request=SimpleNamespace(),
+            credentials=SimpleNamespace(username="user@example.com"),
+            user_manager=user_manager,
+            strategy=get_strategy(),
         )
 
     assert response.status_code == 204
 
-    jar = response.cookies.jar
+    cookies = _parse_set_cookie_headers(response)
+    names = [name for name, _, _ in cookies]
 
-    access_cookie = next((c for c in jar if c.name == "access_token"), None)
-    refresh_cookie = next((c for c in jar if c.name == "refresh_token"), None)
-
-    assert access_cookie is not None
-    assert refresh_cookie is not None
+    assert "access_token" in names
+    assert "refresh_token" in names
     mock_audit_log.assert_awaited_once()
     assert mock_audit_log.await_args.args[0] == "login_success"
