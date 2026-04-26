@@ -22,6 +22,7 @@ from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter
+from sqlalchemy import update as sqlalchemy_update
 
 from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.models import User
@@ -305,6 +306,47 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         if hasattr(user_update, "is_superuser"):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
+
+    async def change_password(
+        self,
+        user: User,
+        current_password: str,
+        new_password: str,
+        request: Request | None = None,
+    ) -> User | None:
+        valid_password, _ = self.password_helper.verify_and_update(
+            current_password,
+            user.hashed_password,
+        )
+        if not valid_password:
+            return None
+
+        await self.validate_password(new_password, user)
+        new_hashed_password = self.password_helper.hash(new_password)
+
+        session = getattr(self.user_db, "session", None)
+        user_table = getattr(self.user_db, "user_table", None)
+        if session is None or user_table is None:
+            raise RuntimeError("Atomic password update requires SQLAlchemy user DB")
+
+        result = await session.execute(
+            sqlalchemy_update(user_table)
+            .where(user_table.id == user.id)
+            .where(user_table.hashed_password == user.hashed_password)
+            .values(hashed_password=new_hashed_password)
+        )
+        if result.rowcount != 1:
+            await session.rollback()
+            return None
+
+        await session.commit()
+        await session.refresh(user)
+        await self.on_after_update(
+            user,
+            {"hashed_password": new_hashed_password},
+            request,
+        )
+        return user
 
     async def on_after_reset_password(
         self, user: models.UP, request: Request | None = None

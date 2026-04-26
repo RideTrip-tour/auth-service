@@ -92,11 +92,13 @@ def get_users_router(
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
         strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
-        valid_password, _ = user_manager.password_helper.verify_and_update(
+        updated_user = await user_manager.change_password(
+            user,
             user_update_pass_schema.current_password,
-            user.hashed_password,
+            user_update_pass_schema.new_password,
+            request,
         )
-        if not valid_password:
+        if updated_user is None:
             await audit_service.log_event(
                 audit_service.AuditEventType.CHANGE_FAILED,
                 request=request,
@@ -109,15 +111,14 @@ def get_users_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.UPDATE_USER_INVALID_PASSWORD,
                 )
-        await user_manager.update(user_update_pass_schema, user)
-        await user_manager.on_after_reset_password(user, request)
+        await user_manager.on_after_reset_password(updated_user, request)
         refresh_token = request.cookies.get(settings.refresh_token_name)
-        await backend.logout(strategy, user, refresh_token or "")
-        await strategy.destroy_tokens_by_user(user)
+        await backend.logout(strategy, updated_user, refresh_token or "")
+        await strategy.destroy_tokens_by_user(updated_user)
         await audit_service.log_event(
             audit_service.AuditEventType.LOGOUT,
             request=request,
-            user_id=user.id,
+            user_id=updated_user.id,
             details={"reason": "password_changed"},
         )
         return {"status": "Пароль обновлен, нужна повторная авторизация"}

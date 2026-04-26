@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 
+from app.db.models import User
 from app.schemas.users import UserUpdateEmail, UserUpdatePassword
 from app.services.users import UserManager
 from config import settings
@@ -49,6 +50,49 @@ async def test_user_manager_update_uses_new_password(mock_user_db):
 
 
 @pytest.mark.asyncio
+async def test_user_manager_change_password_returns_none_on_stale_hash():
+    """Если hash в БД уже изменился, смена пароля должна считаться неуспешной."""
+    execute_result = SimpleNamespace(rowcount=0)
+    session = SimpleNamespace(
+        execute=AsyncMock(return_value=execute_result),
+        rollback=AsyncMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
+    user_db = SimpleNamespace(session=session, user_table=User)
+    manager = UserManager(user_db)
+    user = SimpleNamespace(
+        id=1,
+        email="user@example.com",
+        hashed_password="old-hash",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+
+    with (
+        patch.object(
+            manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ),
+        patch.object(manager.password_helper, "hash", new=MagicMock(return_value="new-hash")),
+        patch.object(manager, "validate_password", new=AsyncMock()),
+    ):
+        result = await manager.change_password(
+            user,
+            "oldpassword123",
+            "newpassword123",
+        )
+
+    assert result is None
+    session.execute.assert_awaited_once()
+    session.rollback.assert_awaited_once()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_change_password_success(app, mock_audit_log):
     """Смена пароля должна обновить пароль, разлогинить и отправить уведомление."""
     route = _get_route(app, "users:patch_pass_current_user")
@@ -70,11 +114,10 @@ async def test_change_password_success(app, mock_audit_log):
 
     with (
         patch.object(
-            user_manager.password_helper,
-            "verify_and_update",
-            new=MagicMock(return_value=(True, None)),
-        ) as verify_password_mock,
-        patch.object(user_manager, "update", new=AsyncMock(return_value=user)) as update_mock,
+            user_manager,
+            "change_password",
+            new=AsyncMock(return_value=user),
+        ) as change_password_mock,
         patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock,
         patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock,
     ):
@@ -87,10 +130,12 @@ async def test_change_password_success(app, mock_audit_log):
         )
 
     assert response == {"status": "Пароль обновлен, нужна повторная авторизация"}
-    verify_password_mock.assert_called_once_with(
-        user_update.current_password, user.hashed_password
+    change_password_mock.assert_awaited_once_with(
+        user,
+        user_update.current_password,
+        user_update.new_password,
+        request,
     )
-    update_mock.assert_awaited_once_with(user_update, user)
     send_email_mock.assert_awaited_once()
     logout_mock.assert_awaited_once()
     assert logout_mock.await_args.args[0] is strategy
@@ -127,11 +172,10 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
     with (
         patch.object(
-            user_manager.password_helper,
-            "verify_and_update",
-            new=MagicMock(return_value=(False, None)),
-        ) as verify_password_mock,
-        patch.object(user_manager, "update", new=AsyncMock()) as update_mock,
+            user_manager,
+            "change_password",
+            new=AsyncMock(return_value=None),
+        ) as change_password_mock,
         patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -145,10 +189,12 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "UPDATE_USER_INVALID_PASSWORD"
-    verify_password_mock.assert_called_once_with(
-        user_update.current_password, user.hashed_password
+    change_password_mock.assert_awaited_once_with(
+        user,
+        user_update.current_password,
+        user_update.new_password,
+        request,
     )
-    update_mock.assert_not_awaited()
     on_after_reset_password_mock.assert_not_awaited()
     strategy.destroy_tokens_by_user.assert_not_awaited()
     mock_audit_log.assert_awaited_once()
