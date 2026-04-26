@@ -94,7 +94,7 @@ jobs:
           docker context create swarm --docker "host=ssh://${{ secrets.SWARM_USER }}@${{ secrets.SWARM_HOST }}"
           docker --context swarm info
 
-      - name: Run auth migrations
+      - name: Run auth migrations via entrypoint
         run: |
           set -euo pipefail
 
@@ -107,8 +107,9 @@ jobs:
 
           cleanup
 
-          docker --context swarm service create \
+          if ! docker --context swarm service create \
             --name "$service_name" \
+            --detach=false \
             --restart-condition none \
             --mode replicated-job \
             --network "$DATA_NETWORK" \
@@ -124,32 +125,12 @@ jobs:
             --env DB_AUTH_SERVICE_USER_FILE=/run/secrets/DB_AUTH_SERVICE_USER \
             --env DB_AUTH_SERVICE_PASS_FILE=/run/secrets/DB_AUTH_SERVICE_PASS \
             --with-registry-auth \
-            "$AUTH_IMAGE_REF"
-
-          deadline=$((SECONDS + 300))
-          completed="false"
-
-          while (( SECONDS < deadline )); do
-            state="$(docker --context swarm service ps "$service_name" --format "{{.CurrentState}}" | head -n1)"
-            echo "state=$state"
-
-            if echo "$state" | grep -q "Complete"; then
-              completed="true"
-              break
-            fi
-
-            if echo "$state" | grep -Eqi "Failed|Rejected|non-zero exit"; then
-              break
-            fi
-
-            sleep 5
-          done
-
-          docker --context swarm service logs "$service_name" || true
-
-          if [ "$completed" != "true" ]; then
+            "$AUTH_IMAGE_REF"; then
+            docker --context swarm service logs "$service_name" || true
             exit 1
           fi
+
+          docker --context swarm service logs "$service_name" || true
 
       - name: Update auth service
         run: |
