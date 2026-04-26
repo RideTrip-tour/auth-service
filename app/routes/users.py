@@ -257,5 +257,5 @@ def get_users_router(
                 "new_email": user_update_email_schema.new_email,
             },
         )
-        return {"status": "Подтвержение смены email отправлено, тербуется подтверждение."}
+        return {"status": "Подтвержение смены email отправлено, требуется подтверждение."}
     return router

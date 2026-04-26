@@ -193,7 +193,7 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
         )
 
     assert response == {
-        "status": "Подтвержение смены email отправлено, тербуется подтверждение."
+        "status": "Подтвержение смены email отправлено, требуется подтверждение."
     }
     verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
     get_by_email_mock.assert_awaited_once_with(user_update.new_email)
