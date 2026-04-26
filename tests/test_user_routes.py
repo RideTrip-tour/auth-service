@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import jwt
 import pytest
 from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 
+from app.db.models import User
 from app.schemas.users import UserUpdateEmail, UserUpdatePassword
 from app.services.users import UserManager
 from config import settings
+from main import request_validation_exception_handler
 
 
 def _get_route(app, name: str):
@@ -47,6 +50,49 @@ async def test_user_manager_update_uses_new_password(mock_user_db):
 
 
 @pytest.mark.asyncio
+async def test_user_manager_change_password_returns_none_on_stale_hash():
+    """Если hash в БД уже изменился, смена пароля должна считаться неуспешной."""
+    execute_result = SimpleNamespace(rowcount=0)
+    session = SimpleNamespace(
+        execute=AsyncMock(return_value=execute_result),
+        rollback=AsyncMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
+    user_db = SimpleNamespace(session=session, user_table=User)
+    manager = UserManager(user_db)
+    user = SimpleNamespace(
+        id=1,
+        email="user@example.com",
+        hashed_password="old-hash",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+
+    with (
+        patch.object(
+            manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ),
+        patch.object(manager.password_helper, "hash", new=MagicMock(return_value="new-hash")),
+        patch.object(manager, "validate_password", new=AsyncMock()),
+    ):
+        result = await manager.change_password(
+            user,
+            "oldpassword123",
+            "newpassword123",
+        )
+
+    assert result is None
+    session.execute.assert_awaited_once()
+    session.rollback.assert_awaited_once()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_change_password_success(app, mock_audit_log):
     """Смена пароля должна обновить пароль, разлогинить и отправить уведомление."""
     route = _get_route(app, "users:patch_pass_current_user")
@@ -68,11 +114,10 @@ async def test_change_password_success(app, mock_audit_log):
 
     with (
         patch.object(
-            user_manager.password_helper,
-            "verify_and_update",
-            new=MagicMock(return_value=(True, None)),
-        ) as verify_password_mock,
-        patch.object(user_manager, "update", new=AsyncMock(return_value=user)) as update_mock,
+            user_manager,
+            "change_password",
+            new=AsyncMock(return_value=user),
+        ) as change_password_mock,
         patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock,
         patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock,
     ):
@@ -85,10 +130,12 @@ async def test_change_password_success(app, mock_audit_log):
         )
 
     assert response == {"status": "Пароль обновлен, нужна повторная авторизация"}
-    verify_password_mock.assert_called_once_with(
-        user_update.current_password, user.hashed_password
+    change_password_mock.assert_awaited_once_with(
+        user,
+        user_update.current_password,
+        user_update.new_password,
+        request,
     )
-    update_mock.assert_awaited_once_with(user_update, user)
     send_email_mock.assert_awaited_once()
     logout_mock.assert_awaited_once()
     assert logout_mock.await_args.args[0] is strategy
@@ -125,11 +172,10 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
     with (
         patch.object(
-            user_manager.password_helper,
-            "verify_and_update",
-            new=MagicMock(return_value=(False, None)),
-        ) as verify_password_mock,
-        patch.object(user_manager, "update", new=AsyncMock()) as update_mock,
+            user_manager,
+            "change_password",
+            new=AsyncMock(return_value=None),
+        ) as change_password_mock,
         patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -143,10 +189,12 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "UPDATE_USER_INVALID_PASSWORD"
-    verify_password_mock.assert_called_once_with(
-        user_update.current_password, user.hashed_password
+    change_password_mock.assert_awaited_once_with(
+        user,
+        user_update.current_password,
+        user_update.new_password,
+        request,
     )
-    update_mock.assert_not_awaited()
     on_after_reset_password_mock.assert_not_awaited()
     strategy.destroy_tokens_by_user.assert_not_awaited()
     mock_audit_log.assert_awaited_once()
@@ -193,7 +241,7 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
         )
 
     assert response == {
-        "status": "Подтвержение смены email отправлено, тербуется подтверждение."
+        "status": "Подтвержение смены email отправлено, требуется подтверждение."
     }
     verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
     get_by_email_mock.assert_awaited_once_with(user_update.new_email)
@@ -277,6 +325,34 @@ async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_au
         mock_audit_log.await_args.kwargs["details"]["new_email"]
         == "new@example.com"
     )
+
+
+@pytest.mark.asyncio
+async def test_request_validation_error_hides_input():
+    """Ошибки валидации не должны отражать пользовательские данные в ответе."""
+    body = (
+        '{"current_email":"current@example.com",'
+        '"new_email":"new@example.com",'
+        '"password":"currentpassword123"}'
+    )
+    exc = RequestValidationError(
+        [
+            {
+                "type": "model_attributes_type",
+                "loc": ("body",),
+                "msg": "Input should be a valid dictionary or object",
+                "input": body,
+            }
+        ]
+    )
+    response = await request_validation_exception_handler(None, exc)
+
+    assert response.status_code == 422
+    response_text = response.body.decode()
+    assert '"input"' not in response_text
+    assert "current@example.com" not in response_text
+    assert "new@example.com" not in response_text
+    assert "currentpassword123" not in response_text
 
 
 @pytest.mark.asyncio

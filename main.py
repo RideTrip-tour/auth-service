@@ -1,10 +1,14 @@
 import logging.config
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from app.routes.token import token_router
 from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdateEmail, UserUpdatePassword
 from app.services.users import auth_backend, fastapi_users
+from app.utils.handler import remove_validation_input
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
@@ -15,6 +19,15 @@ app = FastAPI(
     redoc_url=f"/api/{settings.app_name.split('-')[0]}/redoc",
     openapi_url=f"/api/{settings.app_name.split('-')[0]}/openapi.json",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(remove_validation_input(exc.errors()))},
+    )
+
 
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"]
