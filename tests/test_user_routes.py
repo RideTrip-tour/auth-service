@@ -6,11 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import jwt
 import pytest
 from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 
 from app.schemas.users import UserUpdateEmail, UserUpdatePassword
 from app.services.users import UserManager
 from config import settings
+from main import request_validation_exception_handler
 
 
 def _get_route(app, name: str):
@@ -277,6 +279,34 @@ async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_au
         mock_audit_log.await_args.kwargs["details"]["new_email"]
         == "new@example.com"
     )
+
+
+@pytest.mark.asyncio
+async def test_request_validation_error_hides_input():
+    """Ошибки валидации не должны отражать пользовательские данные в ответе."""
+    body = (
+        '{"current_email":"current@example.com",'
+        '"new_email":"new@example.com",'
+        '"password":"currentpassword123"}'
+    )
+    exc = RequestValidationError(
+        [
+            {
+                "type": "model_attributes_type",
+                "loc": ("body",),
+                "msg": "Input should be a valid dictionary or object",
+                "input": body,
+            }
+        ]
+    )
+    response = await request_validation_exception_handler(None, exc)
+
+    assert response.status_code == 422
+    response_text = response.body.decode()
+    assert '"input"' not in response_text
+    assert "current@example.com" not in response_text
+    assert "new@example.com" not in response_text
+    assert "currentpassword123" not in response_text
 
 
 @pytest.mark.asyncio
