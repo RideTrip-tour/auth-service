@@ -44,9 +44,6 @@ jobs:
     needs:
       - lint_test
     if: github.event_name == 'push'
-    outputs:
-      auth_version: ${{ steps.version.outputs.version }}
-      image_ref: ${{ steps.image.outputs.ref }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,13 +54,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Compute version
-        id: version
-        run: echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
       - name: Compute image ref
         id: image
-        run: echo "ref=${DOCKERHUB_NAMESPACE}/auth-service:${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
+        run: |
+          image_ref="${DOCKERHUB_NAMESPACE}/auth-service:dev-${GITHUB_SHA::7}"
+          echo "AUTH_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
 
       - name: Build and push auth-service
         uses: docker/build-push-action@v6
@@ -82,9 +78,10 @@ jobs:
       - build_push
     if: github.event_name == 'push'
     environment: DEV
-    env:
-      IMAGE_REF: ${{ needs.build_push.outputs.image_ref }}
     steps:
+      - name: Compute image ref
+        run: echo "AUTH_IMAGE_REF=${DOCKERHUB_NAMESPACE}/auth-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SWARM_SSH_PRIVATE_KEY }}
@@ -127,7 +124,7 @@ jobs:
             --env DB_AUTH_SERVICE_USER_FILE=/run/secrets/DB_AUTH_SERVICE_USER \
             --env DB_AUTH_SERVICE_PASS_FILE=/run/secrets/DB_AUTH_SERVICE_PASS \
             --with-registry-auth \
-            "$IMAGE_REF"
+            "$AUTH_IMAGE_REF"
 
           deadline=$((SECONDS + 300))
           completed="false"
@@ -160,5 +157,5 @@ jobs:
           docker --context swarm service update \
             --with-registry-auth \
             --detach=false \
-            --image "$IMAGE_REF" \
+            --image "$AUTH_IMAGE_REF" \
             "$AUTH_SWARM_SERVICE"
