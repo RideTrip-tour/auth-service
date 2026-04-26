@@ -26,6 +26,18 @@ class PasswordValidator:
 class EmailValidator:
     email_fields: ClassVar[tuple[str, ...]] = ("email",)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_email(cls, data):
+        if not isinstance(data, dict):
+            return data
+
+        for field in cls.email_fields:
+            email = data.get(field)
+            if isinstance(email, str):
+                data[field] = email.lower()
+        return data
+
     @model_validator(mode="after")
     def validate_email(self):
         for field in self.email_fields:

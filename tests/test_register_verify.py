@@ -54,6 +54,34 @@ async def test_register_success(client, mock_user_db):
 
 
 @pytest.mark.asyncio
+async def test_register_lowercases_email(client, mock_user_db):
+    """Email при регистрации приводится к нижнему регистру до lookup и токена."""
+    mock_user_db.get_by_email_result = None
+    with patch(
+        "app.services.users.send_email", new_callable=AsyncMock
+    ) as send_email_mock:
+        response = await client.post(
+            "/api/auth/register",
+            json={"email": "NewUser@Example.COM", "password": "securepassword123"},
+        )
+
+    assert response.status_code == 204
+    assert mock_user_db.get_by_email_calls == ["newuser@example.com"]
+    recipient, _, body = send_email_mock.call_args.args
+    assert recipient == "newuser@example.com"
+
+    match = re.search(r"verify_token=([^\s]+)", body)
+    assert match is not None
+    payload = jwt.decode(
+        match.group(1),
+        settings.jwt_secret,
+        algorithms=["HS256"],
+        audience=VERIFY_USER_TOKEN_AUDIENCE,
+    )
+    assert payload["email"] == "newuser@example.com"
+
+
+@pytest.mark.asyncio
 async def test_register_user_already_exists(client, mock_user_db):
     """Регистрация с уже существующим email возвращает 400."""
     existing = type("User", (), {"id": 1, "email": "taken@example.com"})()

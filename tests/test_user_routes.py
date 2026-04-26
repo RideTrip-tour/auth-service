@@ -220,6 +220,66 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
 
 
 @pytest.mark.asyncio
+async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_audit_log):
+    """Email при запросе смены приводится к нижнему регистру до lookup и токена."""
+    route = _get_route(app, "users:patch_email_current_user")
+    user = SimpleNamespace(
+        id=7,
+        email="current@example.com",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+    user_update = UserUpdateEmail(
+        current_email="Current@Example.COM",
+        new_email="New@Example.COM",
+        password="currentpassword123",
+    )
+    user_manager = UserManager(mock_user_db)
+
+    with (
+        patch.object(
+            user_manager.password_helper,
+            "verify_and_update",
+            new=MagicMock(return_value=(True, None)),
+        ),
+        patch.object(
+            mock_user_db, "get_by_email", new=AsyncMock(wraps=mock_user_db.get_by_email)
+        ) as get_by_email_mock,
+        patch("app.routes.users.send_email", new_callable=AsyncMock) as send_email_mock,
+    ):
+        await route.endpoint(
+            request=SimpleNamespace(),
+            user_update_email_schema=user_update,
+            user=user,
+            user_manager=user_manager,
+        )
+
+    assert user_update.current_email == "current@example.com"
+    assert user_update.new_email == "new@example.com"
+    get_by_email_mock.assert_awaited_once_with("new@example.com")
+    _, _, body = send_email_mock.call_args.args
+    token = body.split("verify_token=", 1)[1].strip()
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret,
+        algorithms=["HS256"],
+        audience=VERIFY_USER_TOKEN_AUDIENCE,
+    )
+    assert payload["current_email"] == "current@example.com"
+    assert payload["new_email"] == "new@example.com"
+    assert (
+        mock_audit_log.await_args.kwargs["details"]["current_email"]
+        == "current@example.com"
+    )
+    assert (
+        mock_audit_log.await_args.kwargs["details"]["new_email"]
+        == "new@example.com"
+    )
+
+
+@pytest.mark.asyncio
 async def test_request_change_email_rejects_wrong_current_email(app, mock_user_db, mock_audit_log):
     """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
