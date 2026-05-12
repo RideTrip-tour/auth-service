@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import jwt
 import pytest
@@ -18,6 +19,46 @@ from main import request_validation_exception_handler
 
 def _get_route(app, name: str):
     return next(route for route in app.routes if getattr(route, "name", None) == name)
+
+
+def test_user_manager_token_lifetime_defaults():
+    assert settings.reset_password_token_lifetime_seconds == 60 * 60 * 2
+    assert settings.verification_token_lifetime_seconds == 60 * 60
+    assert UserManager.reset_password_token_lifetime_seconds == 60 * 60 * 2
+    assert UserManager.verification_token_lifetime_seconds == 60 * 60
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_sends_recovery_link(mock_audit_log):
+    """Запрос восстановления пароля должен отправить ссылку с reset-token."""
+    user = SimpleNamespace(
+        id=11,
+        email="user@example.com",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+    manager = UserManager(SimpleNamespace())
+    token = "reset.token.value"
+
+    with patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock:
+        await manager.on_after_forgot_password(user, token, SimpleNamespace())
+
+    send_email_mock.assert_awaited_once()
+    recipient, subject, body = send_email_mock.await_args.args
+    assert recipient == user.email
+    assert subject == "Восстановление доступа"
+
+    recovery_url = urlparse(body.split("http://trip.com", 1)[1].splitlines()[0])
+    assert recovery_url.path == settings.password_recovery_path
+    assert parse_qs(recovery_url.query)["token"] == [token]
+    assert "Ссылка действует 2 часа." in body
+
+    mock_audit_log.assert_awaited_once()
+    assert mock_audit_log.await_args.args[0] == "password_reset_requested"
+    assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+    assert mock_audit_log.await_args.kwargs["details"] == {"token_length": len(token)}
 
 
 @pytest.mark.asyncio
