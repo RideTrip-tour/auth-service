@@ -58,6 +58,11 @@ class EmailValidator:
             domain = normalized_email.rsplit("@", 1)[1]
             if re.search(r"[А-Яа-яЁё]", domain):
                 raise ValueError("Доменная часть email не должна содержать кириллицу.")
+            
+            if len(domain) > 189:
+                raise ValueError(
+                    "Доменная часть email должна содержать не более 189 символов."
+                )
         
         return self
 

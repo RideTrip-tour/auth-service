@@ -251,6 +251,7 @@ async def test_verify_change_email_success(client, mock_user_db):
         {
             "id": 7,
             "email": current_email,
+            "hashed_password": "hashed",
             "is_active": True,
             "is_superuser": False,
             "is_verified": True,
@@ -267,7 +268,8 @@ async def test_verify_change_email_success(client, mock_user_db):
         secret=settings.jwt_secret,
     )
 
-    response = await client.post("/api/auth/verify", json={"token": token})
+    with patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock:
+        response = await client.post("/api/auth/verify", json={"token": token})
 
     assert response.status_code == 200
     data = response.json()
@@ -276,3 +278,18 @@ async def test_verify_change_email_success(client, mock_user_db):
     assert mock_user_db.update_called
     assert mock_user_db.update_call_user is existing_user
     assert mock_user_db.update_call_data == {"email": new_email}
+    assert send_email_mock.await_count == 2
+    old_email_call, new_email_call = send_email_mock.await_args_list
+
+    assert old_email_call.args[0] == current_email
+    assert old_email_call.args[1] == "Email аккаунта изменен"
+    assert "Предыдущий адрес: c***@example.com" in old_email_call.args[2]
+    assert "Новый адрес: n***@example.com" in old_email_call.args[2]
+    assert "Сменить пароль: http://trip.com/reset-password?token=" in old_email_call.args[2]
+
+    assert new_email_call.args[0] == new_email
+    assert new_email_call.args[1] == "Email аккаунта изменен"
+    assert current_email not in new_email_call.args[2]
+    assert "Предыдущий адрес" not in new_email_call.args[2]
+    assert "Сменить пароль" not in new_email_call.args[2]
+    assert "token=" not in new_email_call.args[2]
