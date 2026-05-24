@@ -3,7 +3,6 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.authentication import AuthenticationBackend, Authenticator, Strategy
-from fastapi_users.jwt import generate_jwt
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
@@ -221,17 +220,10 @@ def get_users_router(
                 detail=ErrorCode.REGISTER_USER_ALREADY_EXISTS,
                 )
         
-        data = {
-            'sub': str(user.id),
-            'new_email': user_update_email_schema.new_email,
-            'current_email': user_update_email_schema.current_email,
-            'type': 'change_email',
-            'aud': user_manager.verification_token_audience,
-        }
-        token = generate_jwt(
-            data,
-            user_manager.verification_token_secret,
-            user_manager.verification_token_lifetime_seconds,
+        token = await user_manager.create_change_email_verification_token(
+            user=user,
+            current_email=user_update_email_schema.current_email,
+            new_email=user_update_email_schema.new_email,
         )
         link = f"{settings.origin}/{settings.lk_path}?verify_token={token}"
 

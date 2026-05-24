@@ -22,7 +22,8 @@
 - `aud`
 - `type=register`
 
-Срок жизни токена - 10 минут.
+Срок жизни verification token задаётся настройками. Для смены email используется
+отдельный TTL `CHANGE_EMAIL_TOKEN_LIFETIME_SECONDS`, по умолчанию 1 час.
 
 ## Что делает `verify`
 
@@ -31,7 +32,8 @@
 - декодирует JWT с проверкой secret и audience;
 - читает `type` из payload;
 - если `type == register`, создаёт пользователя в БД;
-- если `type == change_email`, запускает смену email;
+- если `type == change_email`, проверяет pending-запрос в `email_change_requests`,
+  запускает смену email и удаляет использованный токен;
 - иначе считает токен невалидным.
 
 ## Поведение при ошибках
@@ -48,4 +50,3 @@
 ```text
 {origin}/{lk_path}?verify_token=<jwt>
 ```
-

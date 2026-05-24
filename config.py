@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         validation_alias='VERIFICATION_TOKEN_LIFETIME_SECONDS',
         default=60 * 60,
     )
+    change_email_token_lifetime_seconds: int = Field(
+        validation_alias='CHANGE_EMAIL_TOKEN_LIFETIME_SECONDS',
+        default=60 * 60,
+    )
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 

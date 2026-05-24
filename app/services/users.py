@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import datetime
 from textwrap import dedent
 from typing import Generic
@@ -28,6 +29,7 @@ from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import update as sqlalchemy_update
 
 from app.db.database import AsyncSessionLocal, get_user_db
+from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
 from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.routes.auth import get_auth_router
@@ -161,6 +163,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     )
     verification_token_secret = SECRET
     verification_token_lifetime_seconds = settings.verification_token_lifetime_seconds
+    change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = 'fastapi-users:change_email'
 
     @staticmethod
@@ -308,6 +311,70 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
         )
+
+    async def create_change_email_verification_token(
+        self,
+        *,
+        user: models.UP,
+        current_email: str,
+        new_email: str,
+    ) -> str:
+        data = {
+            "sub": str(user.id),
+            "new_email": new_email,
+            "current_email": current_email,
+            "type": "change_email",
+            "aud": self.verification_token_audience,
+            "jti": secrets.token_urlsafe(16),
+        }
+        token = generate_jwt(
+            data,
+            self.verification_token_secret,
+            self.change_email_token_lifetime_seconds,
+        )
+
+        session = getattr(self.user_db, "session", None)
+        if session is not None:
+            token_db = SQLAlchemyEmailChangeRequestDatabase(session)
+            await token_db.replace_for_user(
+                user_id=user.id,
+                current_email=current_email,
+                new_email=new_email,
+                token=token,
+                lifetime_seconds=self.change_email_token_lifetime_seconds,
+            )
+
+        return token
+
+    async def _validate_change_email_request(self, token: str, data: dict) -> None:
+        session = getattr(self.user_db, "session", None)
+        if session is None:
+            return
+
+        token_db = SQLAlchemyEmailChangeRequestDatabase(session)
+        request = await token_db.get_valid(token)
+        if request is None:
+            raise exceptions.InvalidVerifyToken()
+        try:
+            user_id = int(data["sub"])
+        except (KeyError, TypeError, ValueError):
+            raise exceptions.InvalidVerifyToken()
+        current_email = data.get("current_email")
+        new_email = data.get("new_email")
+        if (
+            request.user_id != user_id
+            or request.current_email != current_email
+            or request.new_email != new_email
+        ):
+            raise exceptions.InvalidVerifyToken()
+
+    async def _delete_change_email_request(self, token: str) -> None:
+        session = getattr(self.user_db, "session", None)
+        if session is None:
+            return
+
+        token_db = SQLAlchemyEmailChangeRequestDatabase(session)
+        await token_db.delete_by_token(token)
         
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
@@ -336,6 +403,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             return created_user
         
         if type_operation == 'change_email':
+            data["token"] = token
+            await self._validate_change_email_request(token, data)
             response = await self.change_email(data)
             await self.on_after_change_email(
                 response,
@@ -371,6 +440,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def change_email(self, data: dict):
         new_email = data["new_email"]
         current_email = data["current_email"]
+        token = data.get("token")
         user = await self.user_db.get_by_email(current_email)
         if user is None:
             raise exceptions.UserNotExists()
@@ -379,6 +449,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise exceptions.UserAlreadyExists()
         
         updated_user = await self.user_db.update(user, {'email': new_email})
+        if token:
+            await self._delete_change_email_request(token)
         return updated_user
 
     async def on_after_change_email(
