@@ -24,8 +24,10 @@ def _get_route(app, name: str):
 def test_user_manager_token_lifetime_defaults():
     assert settings.reset_password_token_lifetime_seconds == 60 * 60 * 2
     assert settings.verification_token_lifetime_seconds == 60 * 60
+    assert settings.change_email_token_lifetime_seconds == 60 * 60
     assert UserManager.reset_password_token_lifetime_seconds == 60 * 60 * 2
     assert UserManager.verification_token_lifetime_seconds == 60 * 60
+    assert UserManager.change_email_token_lifetime_seconds == 60 * 60
 
 
 @pytest.mark.asyncio
@@ -302,6 +304,7 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
     assert payload["new_email"] == user_update.new_email
     assert payload["type"] == "change_email"
     assert payload["aud"] == VERIFY_USER_TOKEN_AUDIENCE
+    assert "jti" in payload
     mock_audit_log.assert_awaited_once()
     assert mock_audit_log.await_args.args[0] == "change_requested"
     assert mock_audit_log.await_args.kwargs["user_id"] == user.id
@@ -358,6 +361,7 @@ async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_au
     )
     assert payload["current_email"] == "current@example.com"
     assert payload["new_email"] == "new@example.com"
+    assert "jti" in payload
     assert (
         mock_audit_log.await_args.kwargs["details"]["current_email"]
         == "current@example.com"
@@ -365,6 +369,35 @@ async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_au
     assert (
         mock_audit_log.await_args.kwargs["details"]["new_email"]
         == "new@example.com"
+    )
+
+
+@pytest.mark.asyncio
+async def test_change_email_token_is_stored_and_replaces_previous_request():
+    """При наличии SQLAlchemy session pending-токен смены email сохраняется в БД."""
+    session = SimpleNamespace()
+    user_db = SimpleNamespace(session=session)
+    manager = UserManager(user_db)
+    user = SimpleNamespace(id=7)
+    token_db = SimpleNamespace(replace_for_user=AsyncMock())
+
+    with patch(
+        "app.services.users.SQLAlchemyEmailChangeRequestDatabase",
+        return_value=token_db,
+    ) as token_db_class:
+        token = await manager.create_change_email_verification_token(
+            user=user,
+            current_email="current@example.com",
+            new_email="new@example.com",
+        )
+
+    token_db_class.assert_called_once_with(session)
+    token_db.replace_for_user.assert_awaited_once_with(
+        user_id=user.id,
+        current_email="current@example.com",
+        new_email="new@example.com",
+        token=token,
+        lifetime_seconds=60 * 60,
     )
 
 

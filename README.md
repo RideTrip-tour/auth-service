@@ -89,6 +89,7 @@ uvicorn main:app --reload
 - `User` - аккаунт пользователя, JWT/верификация завязаны на email, пароль и флаги активности;
 - `OAuthAccount` - привязанные OAuth-аккаунты;
 - `RefreshToken` - refresh token, сохранённый в БД и связанный с пользователем.
+- `EmailChangeRequest` - pending-запрос смены email; хранит один активный токен на пользователя с TTL 1 час.
 - `UserActionLog` - журнал действий пользователя: логин, логаут, refresh, смена пароля и email.
 - для смены пароля и email используются общие `change_requested`, `change_failed`, `change_completed`, а тип изменения лежит в `details.change_type`.
 
