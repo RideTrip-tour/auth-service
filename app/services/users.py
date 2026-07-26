@@ -65,9 +65,7 @@ class JWTStrategyCustom(JWTStrategy):
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
         )
 
-    async def destroy_token(
-        self, token: str, user: models.UP
-    ) -> None:
+    async def destroy_token(self, token: str, user: models.UP) -> None:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 token_db = SQLAlchemyRefreshTokenDatabase(session)
@@ -81,10 +79,12 @@ class JWTStrategyCustom(JWTStrategy):
                     token_db = SQLAlchemyRefreshTokenDatabase(session)
                     await token_db.delete_by_user_id(user.id)
 
+
 class FastAPIUsersCustom(
     FastAPIUsers[models.UP, models.ID], Generic[models.UP, models.ID]
 ):
     """Переопределенный FastAPIUsers"""
+
     def __init__(self, get_user_manager, auth_backends):
         super().__init__(get_user_manager, auth_backends)
         self.authenticator = CustomAuthenticator(auth_backends, get_user_manager)
@@ -155,7 +155,8 @@ class FastAPIUsersCustom(
             self.authenticator,
             requires_verification,
         )
-    
+
+
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     reset_password_token_lifetime_seconds = (
@@ -164,7 +165,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     verification_token_secret = SECRET
     verification_token_lifetime_seconds = settings.verification_token_lifetime_seconds
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
-    chage_eamil_token_audience = 'fastapi-users:change_email'
+    chage_eamil_token_audience = "fastapi-users:change_email"
 
     @staticmethod
     def _build_password_recovery_link(token: str) -> str:
@@ -291,7 +292,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         для регистрации пользователя.
         """
         user_dict["aud"] = self.verification_token_audience
-        user_dict['type'] = "register"
+        user_dict["type"] = "register"
         verify_token = generate_jwt(
             user_dict,
             self.verification_token_secret,
@@ -375,7 +376,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         token_db = SQLAlchemyEmailChangeRequestDatabase(session)
         await token_db.delete_by_token(token)
-        
+
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
         try:
@@ -384,25 +385,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 self.verification_token_secret,
                 [self.verification_token_audience],
             )
-            logger.info(f"Данные из токена: {data}")
         except jwt.PyJWTError:
             raise exceptions.InvalidVerifyToken()
 
         try:
             aud = data.pop("aud")
-            type_operation = data.pop('type')
+            type_operation = data.pop("type")
             data.pop("exp")
         except KeyError:
             raise exceptions.InvalidVerifyToken()
 
         if aud != self.verification_token_audience:
             raise exceptions.InvalidVerifyToken()
-        
-        if type_operation == 'register':
+
+        if type_operation == "register":
             created_user = await self.register_user(data)
             return created_user
-        
-        if type_operation == 'change_email':
+
+        if type_operation == "change_email":
             data["token"] = token
             await self._validate_change_email_request(token, data)
             response = await self.change_email(data)
@@ -425,7 +425,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             )
             return response
         raise exceptions.InvalidVerifyToken()
-            
+
     async def register_user(self, data: dict) -> models.UP:
         email = data["email"]
         existing_user = await self.user_db.get_by_email(email)
@@ -436,7 +436,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         created_user = await self.user_db.create(data)
         return created_user
-    
+
     async def change_email(self, data: dict):
         new_email = data["new_email"]
         current_email = data["current_email"]
@@ -447,8 +447,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         existing_user = await self.user_db.get_by_email(new_email)
         if existing_user is not None:
             raise exceptions.UserAlreadyExists()
-        
-        updated_user = await self.user_db.update(user, {'email': new_email})
+
+        updated_user = await self.user_db.update(user, {"email": new_email})
         if token:
             await self._delete_change_email_request(token)
         return updated_user
@@ -541,11 +541,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             request=request,
             user_id=user.id,
         )
-    
+
     async def create(self, user_create, safe=False, request=None):
         user_create.is_superuser = False
         return await super().create(user_create, safe, request)
-    
+
     async def update(self, user_update, user, safe=False, request=None):
         if hasattr(user_update, "is_superuser"):
             user_update.is_superuser = False
@@ -724,17 +724,16 @@ class CookieTransportCustom(CookieTransport):
 
 
 class CustomAuthenticator(Authenticator[User, int]):
-
     async def _authenticate(
-            self,
-            *args,
-            user_manager: UserManager,
-            optional: bool = False,
-            active: bool = False,
-            verified: bool = False,
-            superuser: bool = False,
-            **kwargs,
-            ):
+        self,
+        *args,
+        user_manager: UserManager,
+        optional: bool = False,
+        active: bool = False,
+        verified: bool = False,
+        superuser: bool = False,
+        **kwargs,
+    ):
         if superuser:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         return await super()._authenticate(
