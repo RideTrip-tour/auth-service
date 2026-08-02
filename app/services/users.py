@@ -37,6 +37,11 @@ from app.routes.register import get_register_router, get_verify_router
 from app.routes.users import get_users_router
 import app.services.audit as audit_service
 from app.services.email import send_email
+from app.utils.registration_token import (
+    InvalidRegistrationToken,
+    decrypt_registration_token,
+    encrypt_registration_token,
+)
 from config import settings
 
 logger = logging.getLogger("users.servises")
@@ -288,17 +293,21 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         """
         Отправляем cсылку для подтверждения регистрации пользователю.
 
-        В сылку включаем токен, в котором лежит необходимая информация
-        для регистрации пользователя.
+        В cсылку включаем зашифрованный токен, в котором лежит необходимая 
+        информация для регистрации пользователя.
         """
         user_dict["aud"] = self.verification_token_audience
         user_dict["type"] = "register"
-        verify_token = generate_jwt(
+        signed_token = generate_jwt(
             user_dict,
             self.verification_token_secret,
             self.verification_token_lifetime_seconds,
         )
-        link = f"{settings.origin}/{settings.lk_path}?verify_token={verify_token}"
+        verify_token = encrypt_registration_token(signed_token)
+        link = (
+            f"{settings.origin.rstrip('/')}/{settings.lk_path.lstrip('/')}"
+            f"?{urlencode({'verify_token': verify_token})}"
+        )
         await send_email(
             user_dict["email"],
             "Подтверждение регистрации",
@@ -379,9 +388,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
     async def verify(self, token: str, request: Request | None = None) -> models.UP:
         """Проверяем токен на валидность и создаем пользователя"""
+        decoded_token = token
+        try:
+            decoded_token = decrypt_registration_token(token)
+        except InvalidRegistrationToken:
+            pass
+
         try:
             data = decode_jwt(
-                token,
+                decoded_token,
                 self.verification_token_secret,
                 [self.verification_token_audience],
             )

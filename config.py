@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         validation_alias="CHANGE_EMAIL_TOKEN_LIFETIME_SECONDS",
         default=60 * 60,
     )
+    registration_token_encryption_secret: str = Field(
+        validation_alias="REGISTRATION_TOKEN_ENCRYPTION_SECRET",
+        default="",
+    )
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 
