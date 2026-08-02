@@ -77,6 +77,10 @@ class Settings(BaseSettings):
 
     refresh_token_path: str = "/api/auth/refresh"
     refresh_token_name: str = "refresh_token"
+    login_form_max_body_size: int = Field(
+        validation_alias="LOGIN_FORM_MAX_BODY_SIZE",
+        default=8 * 1024,
+    )
 
     # =========================
     # Config

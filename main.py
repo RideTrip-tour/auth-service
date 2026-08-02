@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.middleware.login_form import limit_login_form_body
 from app.routes.token import token_router
 from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdateEmail, UserUpdatePassword
 from app.services.users import auth_backend, fastapi_users
@@ -19,6 +20,9 @@ app = FastAPI(
     redoc_url=f"/api/{settings.app_name.split('-')[0]}/redoc",
     openapi_url=f"/api/{settings.app_name.split('-')[0]}/openapi.json",
 )
+
+
+app.middleware("http")(limit_login_form_body)
 
 
 @app.exception_handler(RequestValidationError)
