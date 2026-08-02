@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+from urllib.parse import unquote
 from unittest.mock import AsyncMock, patch
 
 import jwt
@@ -17,6 +18,10 @@ if BASE_DIR not in sys.path:
 from fastapi_users.router.common import ErrorCode  # noqa: E402
 
 from config import settings  # noqa: E402
+from app.utils.registration_token import (  # noqa: E402
+    decrypt_registration_token,
+    encrypt_registration_token,
+)
 
 # --- Register ---
 
@@ -41,8 +46,17 @@ async def test_register_success(client, mock_user_db):
 
     match = re.search(r"verify_token=([^\s]+)", body)
     assert match is not None
+    encrypted_token = unquote(match.group(1))
+    with pytest.raises(jwt.DecodeError):
+        jwt.decode(
+            encrypted_token,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+            audience=VERIFY_USER_TOKEN_AUDIENCE,
+        )
+
     payload = jwt.decode(
-        match.group(1),
+        decrypt_registration_token(encrypted_token),
         settings.jwt_secret,
         algorithms=["HS256"],
         audience=VERIFY_USER_TOKEN_AUDIENCE,
@@ -73,7 +87,7 @@ async def test_register_lowercases_email(client, mock_user_db):
     match = re.search(r"verify_token=([^\s]+)", body)
     assert match is not None
     payload = jwt.decode(
-        match.group(1),
+        decrypt_registration_token(unquote(match.group(1))),
         settings.jwt_secret,
         algorithms=["HS256"],
         audience=VERIFY_USER_TOKEN_AUDIENCE,
@@ -133,11 +147,12 @@ def _make_verify_token(email: str, hashed_password: str) -> str:
         "aud": VERIFY_USER_TOKEN_AUDIENCE,
         "type": "register",
     }
-    return generate_jwt(
+    signed_token = generate_jwt(
         payload,
         settings.jwt_secret,
         lifetime_seconds=10 * 60,
     )
+    return encrypt_registration_token(signed_token)
 
 
 @pytest.mark.asyncio

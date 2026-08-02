@@ -153,6 +153,20 @@ async def test_login_route_logs_failed_auth_attempt(app, mock_audit_log):
 
 
 @pytest.mark.asyncio
+async def test_login_rejects_oversized_form_before_auth(client, mock_user_db):
+    """Большой form-urlencoded login body должен отклоняться до парсинга формы."""
+    response = await client.post(
+        "/api/auth/login",
+        content=f"username=user@example.com&password={'x' * 9000}",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Login form body too large"
+    assert mock_user_db.get_by_email_calls == []
+
+
+@pytest.mark.asyncio
 async def test_refresh_route_logs_session_rotation(app, mock_audit_log):
     """Успешный refresh должен писать событие rotation новой активной сессии."""
     route = _get_route(app, "token:refresh_token")
