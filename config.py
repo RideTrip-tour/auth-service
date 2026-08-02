@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     refresh_token_expire_sec: int = 60 * 60 * 24 * 7
     reset_password_token_lifetime_seconds: int = Field(
         validation_alias="RESET_PASSWORD_TOKEN_LIFETIME_SECONDS",
-        default=60 * 60 * 2,
+        default=60 * 60,
     )
     verification_token_lifetime_seconds: int = Field(
         validation_alias="VERIFICATION_TOKEN_LIFETIME_SECONDS",
