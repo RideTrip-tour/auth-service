@@ -22,10 +22,10 @@ def _get_route(app, name: str):
 
 
 def test_user_manager_token_lifetime_defaults():
-    assert settings.reset_password_token_lifetime_seconds == 60 * 60 * 2
+    assert settings.reset_password_token_lifetime_seconds == 60 * 60
     assert settings.verification_token_lifetime_seconds == 60 * 60
     assert settings.change_email_token_lifetime_seconds == 60 * 60
-    assert UserManager.reset_password_token_lifetime_seconds == 60 * 60 * 2
+    assert UserManager.reset_password_token_lifetime_seconds == 60 * 60
     assert UserManager.verification_token_lifetime_seconds == 60 * 60
     assert UserManager.change_email_token_lifetime_seconds == 60 * 60
 
@@ -44,7 +44,9 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     manager = UserManager(SimpleNamespace())
     token = "reset.token.value"
 
-    with patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock:
+    with patch(
+        "app.services.users.send_email", new_callable=AsyncMock
+    ) as send_email_mock:
         await manager.on_after_forgot_password(user, token, SimpleNamespace())
 
     send_email_mock.assert_awaited_once()
@@ -55,7 +57,7 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     recovery_url = urlparse(body.split("http://trip.com", 1)[1].splitlines()[0])
     assert recovery_url.path == settings.password_recovery_path
     assert parse_qs(recovery_url.query)["token"] == [token]
-    assert "Ссылка действует 2 часа." in body
+    assert "Ссылка действует 1 час." in body
 
     mock_audit_log.assert_awaited_once()
     assert mock_audit_log.await_args.args[0] == "password_reset_requested"
@@ -119,7 +121,9 @@ async def test_user_manager_change_password_returns_none_on_stale_hash():
             "verify_and_update",
             new=MagicMock(return_value=(True, None)),
         ),
-        patch.object(manager.password_helper, "hash", new=MagicMock(return_value="new-hash")),
+        patch.object(
+            manager.password_helper, "hash", new=MagicMock(return_value="new-hash")
+        ),
         patch.object(manager, "validate_password", new=AsyncMock()),
     ):
         result = await manager.change_password(
@@ -161,8 +165,12 @@ async def test_change_password_success(app, mock_audit_log):
             "change_password",
             new=AsyncMock(return_value=user),
         ) as change_password_mock,
-        patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock,
-        patch("app.services.users.auth_backend.logout", new_callable=AsyncMock) as logout_mock,
+        patch(
+            "app.services.users.send_email", new_callable=AsyncMock
+        ) as send_email_mock,
+        patch(
+            "app.services.users.auth_backend.logout", new_callable=AsyncMock
+        ) as logout_mock,
     ):
         response = await route.endpoint(
             request=request,
@@ -188,7 +196,9 @@ async def test_change_password_success(app, mock_audit_log):
     assert mock_audit_log.await_count == 2
     assert mock_audit_log.await_args_list[0].args[0] == "change_completed"
     assert mock_audit_log.await_args_list[0].kwargs["user_id"] == user.id
-    assert mock_audit_log.await_args_list[0].kwargs["details"]["change_type"] == "password"
+    assert (
+        mock_audit_log.await_args_list[0].kwargs["details"]["change_type"] == "password"
+    )
     assert mock_audit_log.await_args_list[1].args[0] == "logout"
     assert mock_audit_log.await_args_list[1].kwargs["user_id"] == user.id
 
@@ -219,7 +229,9 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
             "change_password",
             new=AsyncMock(return_value=None),
         ) as change_password_mock,
-        patch.object(user_manager, "on_after_reset_password", new=AsyncMock()) as on_after_reset_password_mock,
+        patch.object(
+            user_manager, "on_after_reset_password", new=AsyncMock()
+        ) as on_after_reset_password_mock,
     ):
         with pytest.raises(HTTPException) as exc_info:
             await route.endpoint(
@@ -247,7 +259,9 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_sends_verification_link(app, mock_user_db, mock_audit_log):
+async def test_request_change_email_sends_verification_link(
+    app, mock_user_db, mock_audit_log
+):
     """Запрос смены email должен отправить письмо с токеном подтверждения."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -286,7 +300,9 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
     assert response == {
         "status": "Подтвержение смены email отправлено, требуется подтверждение."
     }
-    verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
+    verify_password_mock.assert_called_once_with(
+        user_update.password, user.hashed_password
+    )
     get_by_email_mock.assert_awaited_once_with(user_update.new_email)
     send_email_mock.assert_awaited_once()
     recipient, subject, body = send_email_mock.call_args.args
@@ -312,7 +328,9 @@ async def test_request_change_email_sends_verification_link(app, mock_user_db, m
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_audit_log):
+async def test_request_change_email_lowercases_emails(
+    app, mock_user_db, mock_audit_log
+):
     """Email при запросе смены приводится к нижнему регистру до lookup и токена."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -366,10 +384,7 @@ async def test_request_change_email_lowercases_emails(app, mock_user_db, mock_au
         mock_audit_log.await_args.kwargs["details"]["current_email"]
         == "current@example.com"
     )
-    assert (
-        mock_audit_log.await_args.kwargs["details"]["new_email"]
-        == "new@example.com"
-    )
+    assert mock_audit_log.await_args.kwargs["details"]["new_email"] == "new@example.com"
 
 
 @pytest.mark.asyncio
@@ -430,7 +445,9 @@ async def test_request_validation_error_hides_input():
 
 
 @pytest.mark.asyncio
-async def test_request_change_email_rejects_wrong_current_email(app, mock_user_db, mock_audit_log):
+async def test_request_change_email_rejects_wrong_current_email(
+    app, mock_user_db, mock_audit_log
+):
     """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
@@ -468,9 +485,27 @@ async def test_request_change_email_rejects_wrong_current_email(app, mock_user_d
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "LOGIN_BAD_CREDENTIALS"
-    verify_password_mock.assert_called_once_with(user_update.password, user.hashed_password)
+    verify_password_mock.assert_called_once_with(
+        user_update.password, user.hashed_password
+    )
     get_by_email_mock.assert_not_awaited()
     mock_audit_log.assert_awaited_once()
     assert mock_audit_log.await_args.args[0] == "change_failed"
     assert mock_audit_log.await_args.kwargs["details"]["change_type"] == "email"
     assert mock_audit_log.await_args.kwargs["user_id"] == user.id
+
+
+@pytest.mark.asyncio
+async def test_reset_password_bad_pass(
+    client,
+):
+    """Проверка валидации пароля при сбросе пароля."""
+    response = await client.post(
+        "api/auth/reset-password",
+        json={
+            "token": "token",
+            "password": " ",
+        },
+    )
+
+    assert response.status_code == 422
