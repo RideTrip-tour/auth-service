@@ -51,8 +51,11 @@ def get_reset_password_router(
     ):
         try:
             user = await user_manager.get_by_email(email_forgot_pass.email)
-        except exceptions.UserNotExists:
-            return None
+        except exceptions.UserNotExists as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="USER NOT FOUND",
+            ) from exc
 
         try:
             await user_manager.forgot_password(user, request)
@@ -73,26 +76,24 @@ def get_reset_password_router(
     ):
         try:
             await user_manager.reset_password(
-                reset_pass_schema.token,
-                reset_pass_schema.password,
-                request
-                )
+                reset_pass_schema.token, reset_pass_schema.password, request
+            )
         except (
             exceptions.InvalidResetPasswordToken,
             exceptions.UserNotExists,
             exceptions.UserInactive,
-        ):
+        ) as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.RESET_PASSWORD_BAD_TOKEN,
-            )
-        except exceptions.InvalidPasswordException as e:
+            ) from exc
+        except exceptions.InvalidPasswordException as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "code": ErrorCode.RESET_PASSWORD_INVALID_PASSWORD,
-                    "reason": e.reason,
+                    "reason": exc.reason,
                 },
-            )
+            ) from exc
 
     return router
