@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
-from pydantic import EmailStr
-
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_users import exceptions, models
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
-from app.schemas.reset_pass import ResetPass
+from app.schemas.reset_pass import EmailForgotPass, ResetPass
 
 
 RESET_PASSWORD_RESPONSES: OpenAPIResponseType = {
@@ -37,7 +35,6 @@ RESET_PASSWORD_RESPONSES: OpenAPIResponseType = {
 
 def get_reset_password_router(
     get_user_manager: UserManagerDependency[models.UP, models.ID],
-    reset_pass_schema: ResetPass
 ) -> APIRouter:
     """Generate a router with the reset password routes."""
     router = APIRouter()
@@ -49,11 +46,11 @@ def get_reset_password_router(
     )
     async def forgot_password(
         request: Request,
-        email: EmailStr = Body(..., embed=True),
+        email_forgot_pass: EmailForgotPass,
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
     ):
         try:
-            user = await user_manager.get_by_email(email)
+            user = await user_manager.get_by_email(email_forgot_pass.email)
         except exceptions.UserNotExists:
             return None
 

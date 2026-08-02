@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 
 from app.middleware.login_form import limit_login_form_body
 from app.routes.token import token_router
-from app.schemas.reset_pass import ResetPass
 from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdateEmail, UserUpdatePassword
 from app.services.users import auth_backend, fastapi_users
 from app.utils.handler import remove_validation_input
@@ -43,7 +42,7 @@ app.include_router(
     tags=["auth"],
 )
 app.include_router(
-    fastapi_users.get_reset_password_router(ResetPass),
+    fastapi_users.get_reset_password_router(),
     prefix=f"/api/{settings.app_name.split('-')[0]}",
     tags=["auth"],
 )

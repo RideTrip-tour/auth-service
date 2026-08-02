@@ -509,3 +509,18 @@ async def test_reset_password_bad_pass(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_password_bad_email(
+    client,
+):
+    """Проверка валидации email при сбросе пароля."""
+    response = await client.post(
+        "api/auth/forgot-password",
+        json={
+            "email": "кирилица@mail.ru",
+        },
+    )
+
+    assert response.status_code == 422
