@@ -34,6 +34,7 @@ from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.routes.auth import get_auth_router
 from app.routes.register import get_register_router, get_verify_router
+from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
 import app.services.audit as audit_service
 from app.services.email import send_email
@@ -161,7 +162,10 @@ class FastAPIUsersCustom(
             requires_verification,
         )
 
-
+    def get_reset_password_router(self) -> APIRouter:
+        """Return a reset password process router."""
+        return get_reset_password_router(self.get_user_manager)
+    
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     reset_password_token_lifetime_seconds = (

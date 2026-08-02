@@ -69,6 +69,9 @@ class MockUserDb:
         self.get_call_id = None
         self.get_result = None
         self.get_by_email_calls = []
+        self.reset_pass_called = None
+        self.reset_pass_token = None
+        self.reset_pass_password = None
 
     async def get_by_email(self, email: str):
         self.get_by_email_calls.append(email)
@@ -93,6 +96,16 @@ class MockUserDb:
         self.get_called = True
         self.get_call_id = user_id
         return self.get_result
+
+    async def reset_password(self,
+            token: str,
+            password: str,
+            request,
+    ):
+        self.reset_pass_called = True
+        self.reset_pass_token = token
+        self.reset_pass_password = password
+        return self.create_result
 
 
 @pytest.fixture
