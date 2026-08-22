@@ -207,7 +207,8 @@ async def test_verify_bad_token(client, mock_user_db):
 @pytest.mark.asyncio
 async def test_verify_expired_token(client, mock_user_db):
     """Истёкший токен → 400 VERIFY_USER_BAD_TOKEN."""
-    from datetime import datetime, timedelta
+    import datetime
+    from datetime import timedelta
 
     import jwt
 
@@ -215,7 +216,7 @@ async def test_verify_expired_token(client, mock_user_db):
         "email": "expired@example.com",
         "hashed_password": "hash",
         "aud": VERIFY_USER_TOKEN_AUDIENCE,
-        "exp": datetime.now(datetime.UTC) - timedelta(seconds=10),
+        "exp": datetime.datetime.now(datetime.UTC) - timedelta(seconds=10),
     }
     token = jwt.encode(
         payload,
