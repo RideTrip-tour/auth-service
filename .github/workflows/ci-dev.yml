@@ -10,8 +10,11 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
-  AUTH_SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
+  SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
   DATA_NETWORK: ${{ vars.DATA_NETWORK || 'data-network' }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME || 'auth-service' }}
+  APP_NAME: ${{ vars.APP_NAME || 'auth' }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'DEV' }}
 
 jobs:
   lint_test:
@@ -34,7 +37,10 @@ jobs:
           python -m pip install ruff
 
       - name: Lint (ruff)
-        run: ruff check --select F,E9 .
+        run: |
+          ruff check --select F,E9 .
+          ruff check .
+          ruff format --check .
 
       - name: Tests (pytest)
         run: pytest -q
@@ -139,4 +145,4 @@ jobs:
             --with-registry-auth \
             --detach=false \
             --image "$AUTH_IMAGE_REF" \
-            "$AUTH_SWARM_SERVICE"
+            "$SWARM_SERVICE"
