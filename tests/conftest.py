@@ -144,6 +144,6 @@ async def client(auth_app):
     """Async HTTP-клиент для вызова API аутентификации."""
     async with AsyncClient(
         transport=ASGITransport(app=auth_app),
-        base_url="http://test",
+        base_url="https://test",
     ) as ac:
         yield ac
