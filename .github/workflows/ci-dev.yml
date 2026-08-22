@@ -164,7 +164,7 @@ jobs:
           trap cleanup EXIT
           cleanup
 
-          HEALTHCHECK_URL="http://${{ env.SERVICE_NAME }}/${{ env.APP_NAME }}/health"
+          HEALTHCHECK_URL="http://${{ env.SERVICE_NAME }}:8000/${{ env.APP_NAME }}/health"
 
           echo "Healthcheck URL: ${HEALTHCHECK_URL}"
 

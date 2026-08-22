@@ -4,9 +4,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         postgresql-client \
         redis-tools \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd --create-home appuser
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home appuser
 
 WORKDIR /app
 
