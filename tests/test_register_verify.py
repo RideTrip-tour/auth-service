@@ -304,7 +304,7 @@ async def test_verify_change_email_success(client, mock_user_db):
     assert "Предыдущий адрес: c***@example.com" in old_email_call.args[2]
     assert "Новый адрес: n***@example.com" in old_email_call.args[2]
     assert (
-        "Сменить пароль: http://trip.com/reset-password?token="
+        "Сменить пароль: https://trip.com/reset-password?token="
         in old_email_call.args[2]
     )
 

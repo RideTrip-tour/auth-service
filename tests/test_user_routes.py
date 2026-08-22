@@ -54,7 +54,7 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     assert recipient == user.email
     assert subject == "Восстановление доступа"
 
-    recovery_url = urlparse(body.split("http://trip.com", 1)[1].splitlines()[0])
+    recovery_url = urlparse(body.split("https://trip.com", 1)[1].splitlines()[0])
     assert recovery_url.path == settings.password_recovery_path
     assert parse_qs(recovery_url.query)["token"] == [token]
     assert "Ссылка действует 1 час." in body
