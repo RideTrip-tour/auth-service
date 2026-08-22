@@ -49,7 +49,9 @@ def _get_route(app, name: str):
 
 
 @pytest.mark.asyncio
-async def test_login_creates_refresh_token_without_deleting_existing_ones(mock_audit_log):
+async def test_login_creates_refresh_token_without_deleting_existing_ones(
+    mock_audit_log,
+):
     """Login должен создавать новый refresh token, но не удалять старые."""
     user = SimpleNamespace(id=10, is_verified=True, is_superuser=False)
     strategy = get_strategy()
@@ -59,10 +61,15 @@ async def test_login_creates_refresh_token_without_deleting_existing_ones(mock_a
         delete_by_user_id=AsyncMock(),
     )
 
-    with patch(
-        "app.services.users.SQLAlchemyRefreshTokenDatabase",
-        return_value=fake_token_db,
-    ), patch("app.services.users.auth_backend.session_factory", new=_FakeSessionFactory()):
+    with (
+        patch(
+            "app.services.users.SQLAlchemyRefreshTokenDatabase",
+            return_value=fake_token_db,
+        ),
+        patch(
+            "app.services.users.auth_backend.session_factory", new=_FakeSessionFactory()
+        ),
+    ):
         response = await auth_backend.login(strategy, user)
 
     assert response.status_code == 204
@@ -79,8 +86,12 @@ async def test_destroy_token_deletes_only_current_token(mock_audit_log):
     user = SimpleNamespace(id=10, is_verified=True, is_superuser=False)
     fake_token_db = SimpleNamespace(delete_by_token=AsyncMock())
 
-    with patch("app.services.users.SQLAlchemyRefreshTokenDatabase", return_value=fake_token_db), patch(
-        "app.services.users.AsyncSessionLocal", new=_FakeSessionFactory()
+    with (
+        patch(
+            "app.services.users.SQLAlchemyRefreshTokenDatabase",
+            return_value=fake_token_db,
+        ),
+        patch("app.services.users.AsyncSessionLocal", new=_FakeSessionFactory()),
     ):
         strategy = get_strategy()
         await strategy.destroy_token("current.refresh.token", user)
@@ -112,7 +123,9 @@ async def test_logout_uses_refresh_cookie_for_token_deletion(app, mock_audit_log
         new=AsyncMock(return_value=SimpleNamespace(status_code=204)),
     ) as logout_mock:
         logout_route = next(
-            route for route in app.routes if getattr(route, "name", None) == "auth:cookie.logout"
+            route
+            for route in app.routes
+            if getattr(route, "name", None) == "auth:cookie.logout"
         )
         response = await logout_route.endpoint(
             request=request,

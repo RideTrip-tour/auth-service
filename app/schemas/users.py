@@ -1,7 +1,7 @@
-from typing import ClassVar
+from typing import Annotated, ClassVar
+
 from fastapi_users import schemas
 from pydantic import BaseModel, Field, model_validator
-from typing import Annotated
 
 from app.utils.validators import EmailValidator, PasswordValidator
 
@@ -24,15 +24,16 @@ class UserUpdatePassword(schemas.CreateUpdateDictModel, PasswordValidator):
         if self.current_password == self.new_password:
             raise ValueError("Новый пароль не должен совпадать с текущим")
         return self
-    
+
     def create_update_dict(self):
-        return {'password': self.new_password}
-    
+        return {"password": self.new_password}
+
     def create_update_dict_superuser(self):
         return self.create_update_dict()
 
+
 class UserUpdateEmail(schemas.CreateUpdateDictModel, PasswordValidator, EmailValidator):
-    email_fields: ClassVar[tuple[str, ...]] = ("new_email", 'current_email')
+    email_fields: ClassVar[tuple[str, ...]] = ("new_email", "current_email")
     current_email: str
     new_email: str
     password: str

@@ -3,8 +3,8 @@
 import os
 import re
 import sys
-from urllib.parse import unquote
 from unittest.mock import AsyncMock, patch
+from urllib.parse import unquote
 
 import jwt
 import pytest
@@ -15,13 +15,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from fastapi_users.router.common import ErrorCode  # noqa: E402
+from fastapi_users.router.common import ErrorCode
 
-from config import settings  # noqa: E402
-from app.utils.registration_token import (  # noqa: E402
+from app.utils.registration_token import (
     decrypt_registration_token,
     encrypt_registration_token,
 )
+from config import settings
 
 # --- Register ---
 
@@ -207,7 +207,7 @@ async def test_verify_bad_token(client, mock_user_db):
 @pytest.mark.asyncio
 async def test_verify_expired_token(client, mock_user_db):
     """Истёкший токен → 400 VERIFY_USER_BAD_TOKEN."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     import jwt
 
@@ -215,7 +215,7 @@ async def test_verify_expired_token(client, mock_user_db):
         "email": "expired@example.com",
         "hashed_password": "hash",
         "aud": VERIFY_USER_TOKEN_AUDIENCE,
-        "exp": datetime.now(timezone.utc) - timedelta(seconds=10),
+        "exp": datetime.now(datetime.UTC) - timedelta(seconds=10),
     }
     token = jwt.encode(
         payload,
@@ -283,7 +283,9 @@ async def test_verify_change_email_success(client, mock_user_db):
         secret=settings.jwt_secret,
     )
 
-    with patch("app.services.users.send_email", new_callable=AsyncMock) as send_email_mock:
+    with patch(
+        "app.services.users.send_email", new_callable=AsyncMock
+    ) as send_email_mock:
         response = await client.post("/api/auth/verify", json={"token": token})
 
     assert response.status_code == 200
@@ -300,7 +302,10 @@ async def test_verify_change_email_success(client, mock_user_db):
     assert old_email_call.args[1] == "Email аккаунта изменен"
     assert "Предыдущий адрес: c***@example.com" in old_email_call.args[2]
     assert "Новый адрес: n***@example.com" in old_email_call.args[2]
-    assert "Сменить пароль: http://trip.com/reset-password?token=" in old_email_call.args[2]
+    assert (
+        "Сменить пароль: http://trip.com/reset-password?token="
+        in old_email_call.args[2]
+    )
 
     assert new_email_call.args[0] == new_email
     assert new_email_call.args[1] == "Email аккаунта изменен"

@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, List, Union
+from collections.abc import Iterable
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import EmailStr
@@ -10,7 +10,7 @@ logger = logging.getLogger("email")
 
 
 async def send_email(
-    to: Union[EmailStr, str, Iterable[Union[EmailStr, str]]],
+    to: EmailStr | str | Iterable[EmailStr | str],
     subject: str,
     body: str,
     *,
@@ -25,7 +25,7 @@ async def send_email(
     """
 
     if isinstance(to, (str, EmailStr)):
-        recipients: List[Union[EmailStr, str]] = [to]
+        recipients: list[EmailStr | str] = [to]
     else:
         recipients = list(to)
 
@@ -41,7 +41,6 @@ async def send_email(
 
     # Проверяем, что базовые настройки почты заданы
     if not settings.mail_server or not settings.mail_from:
-
         logger.warning(
             "Email settings are not configured (MAIL_SERVER / MAIL_FROM). "
             "Письмо не будет отправлено."
@@ -70,5 +69,5 @@ async def send_email(
 
         fast_mail = FastMail(conf)
         await fast_mail.send_message(message)
-    except Exception as exc:
-        logger.exception("Ошибка при отправке email: %s", exc)
+    except Exception:
+        logger.exception("Ошибка при отправке email")

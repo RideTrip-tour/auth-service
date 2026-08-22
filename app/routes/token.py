@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
+
+import app.services.audit as audit_service
 from app.db.refresh_token_database import (
     SQLAlchemyRefreshTokenDatabase,
     get_refresh_token_db,
 )
-import app.services.audit as audit_service
 from app.services.users import auth_backend, cookie_transport, get_strategy
 from config import settings
 

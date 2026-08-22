@@ -1,8 +1,7 @@
 import re
-
 from typing import ClassVar
-from pydantic import EmailStr, model_validator, TypeAdapter
 
+from pydantic import EmailStr, TypeAdapter, model_validator
 
 email_adapter = TypeAdapter(EmailStr)
 
@@ -58,10 +57,10 @@ class EmailValidator:
             domain = normalized_email.rsplit("@", 1)[1]
             if re.search(r"[А-Яа-яЁё]", domain):
                 raise ValueError("Доменная часть email не должна содержать кириллицу.")
-            
+
             if len(domain) > 189:
                 raise ValueError(
                     "Доменная часть email должна содержать не более 189 символов."
                 )
-        
+
         return self

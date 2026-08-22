@@ -6,12 +6,13 @@ from fastapi_users.authentication import AuthenticationBackend, Authenticator, S
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
-from app.schemas.users import StatusResponse
 import app.services.audit as audit_service
+from app.schemas.users import StatusResponse
 from app.services.email import send_email
 from config import settings
 
 logger = logging.getLogger("users.routes")
+
 
 def get_users_router(
     backend: AuthenticationBackend[models.UP, models.ID],
@@ -109,7 +110,7 @@ def get_users_router(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.UPDATE_USER_INVALID_PASSWORD,
-                )
+            )
         await user_manager.on_after_reset_password(updated_user, request)
         refresh_token = request.cookies.get(settings.refresh_token_name)
         await backend.logout(strategy, updated_user, refresh_token or "")
@@ -121,7 +122,7 @@ def get_users_router(
             details={"reason": "password_changed"},
         )
         return {"status": "Пароль обновлен, нужна повторная авторизация"}
-    
+
     @router.post(
         "/me/request-change-email",
         response_model=StatusResponse,
@@ -183,7 +184,7 @@ def get_users_router(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
-                )
+            )
         if user.email != user_update_email_schema.current_email:
             await audit_service.log_event(
                 audit_service.AuditEventType.CHANGE_FAILED,
@@ -199,7 +200,7 @@ def get_users_router(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
-                )
+            )
         existing_user = await user_manager.user_db.get_by_email(
             user_update_email_schema.new_email
         )
@@ -218,8 +219,8 @@ def get_users_router(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.REGISTER_USER_ALREADY_EXISTS,
-                )
-        
+            )
+
         token = await user_manager.create_change_email_verification_token(
             user=user,
             current_email=user_update_email_schema.current_email,
@@ -250,5 +251,8 @@ def get_users_router(
                 "new_email": user_update_email_schema.new_email,
             },
         )
-        return {"status": "Подтвержение смены email отправлено, требуется подтверждение."}
+        return {
+            "status": "Подтвержение смены email отправлено, требуется подтверждение."
+        }
+
     return router

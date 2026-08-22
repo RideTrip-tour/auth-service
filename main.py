@@ -7,7 +7,13 @@ from fastapi.responses import JSONResponse
 
 from app.middleware.login_form import limit_login_form_body
 from app.routes.token import token_router
-from app.schemas.users import UserBeforeVerify, UserCreate, UserRead, UserUpdateEmail, UserUpdatePassword
+from app.schemas.users import (
+    UserBeforeVerify,
+    UserCreate,
+    UserRead,
+    UserUpdateEmail,
+    UserUpdatePassword,
+)
 from app.services.users import auth_backend, fastapi_users
 from app.utils.handler import remove_validation_input
 from app.utils.logging import LOGGING_CONFIG
@@ -56,14 +62,15 @@ app.include_router(
     fastapi_users.get_users_router(
         backend=auth_backend,
         user_schema=UserRead,
-        user_update_pass_schema = UserUpdatePassword,
-        user_update_email_schema = UserUpdateEmail,
-        ),
+        user_update_pass_schema=UserUpdatePassword,
+        user_update_email_schema=UserUpdateEmail,
+    ),
     prefix="/api/users",
     tags=["users"],
 )
 
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])
+
 
 @app.get(f"/api/{settings.app_name.split('-')[0]}/health")
 async def health_check():
