@@ -10,7 +10,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 from app.db.base import Base  # noqa
-from app.db.models import *
+from app.db.models import *  # noqa F403
 from config import settings as se
 
 target_metadata = Base.metadata
