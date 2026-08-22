@@ -10,8 +10,11 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
-  AUTH_SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
+  SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
   DATA_NETWORK: ${{ vars.DATA_NETWORK || 'data-network' }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME || 'auth-service' }}
+  APP_NAME: ${{ vars.APP_NAME || 'auth' }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'DEV' }}
 
 jobs:
   lint_test:
@@ -31,10 +34,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.test.txt
-          python -m pip install ruff
 
       - name: Lint (ruff)
-        run: ruff check --select F,E9 .
+        run: |
+          ruff check --select F,E9 .
+          ruff check .
+          ruff format --check .
 
       - name: Tests (pytest)
         run: pytest -q
@@ -57,18 +62,18 @@ jobs:
       - name: Compute image ref
         id: image
         run: |
-          image_ref="${DOCKERHUB_NAMESPACE}/auth-service:dev-${GITHUB_SHA::7}"
-          echo "AUTH_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          image_ref="${DOCKERHUB_NAMESPACE}/${SERVICE_NAME}:dev-${GITHUB_SHA::7}"
+          echo "IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
           echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push auth-service
+      - name: Build and push ${{ env.SERVICE_NAME }}
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
             ${{ steps.image.outputs.ref }}
-            ${{ env.DOCKERHUB_NAMESPACE }}/auth-service:dev
+            ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.SERVICE_NAME }}:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -80,7 +85,7 @@ jobs:
     environment: DEV
     steps:
       - name: Compute image ref
-        run: echo "AUTH_IMAGE_REF=${DOCKERHUB_NAMESPACE}/auth-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_REF=${DOCKERHUB_NAMESPACE}/${SERVICE_NAME}:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -91,14 +96,17 @@ jobs:
 
       - name: Create docker context
         run: |
+          echo "DEPLOY_STEP=Preparation" >> "$GITHUB_ENV"
+
           docker context create swarm --docker "host=ssh://${{ secrets.SWARM_USER }}@${{ secrets.SWARM_HOST }}"
           docker --context swarm info
 
-      - name: Run auth migrations via entrypoint
+      - name: Run ${{ env.SERVICE_NAME }} migrations via entrypoint
         run: |
           set -euo pipefail
+          echo "DEPLOY_STEP=Migration" >> "$GITHUB_ENV"
 
-          service_name="auth-migrate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          service_name="${SERVICE_NAME}-migrate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           cleanup() {
             docker --context swarm service rm "$service_name" >/dev/null 2>&1 || true
@@ -125,18 +133,138 @@ jobs:
             --env DB_AUTH_SERVICE_USER_FILE=/run/secrets/DB_AUTH_SERVICE_USER \
             --env DB_AUTH_SERVICE_PASS_FILE=/run/secrets/DB_AUTH_SERVICE_PASS \
             --with-registry-auth \
-            "$AUTH_IMAGE_REF"; then
+            "$IMAGE_REF"; then
             docker --context swarm service logs "$service_name" || true
             exit 1
           fi
 
           docker --context swarm service logs "$service_name" || true
 
-      - name: Update auth service
+      - name: Update ${{ env.SERVICE_NAME }}
         run: |
           set -euo pipefail
+          echo "DEPLOY_STEP=Swarm rollout" >> "$GITHUB_ENV"
+
           docker --context swarm service update \
             --with-registry-auth \
             --detach=false \
-            --image "$AUTH_IMAGE_REF" \
-            "$AUTH_SWARM_SERVICE"
+            --image "$IMAGE_REF" \
+            "$SWARM_SERVICE"
+
+      - name: Healthcheck ${{ env.SERVICE_NAME }}
+        run: |
+          set -euo pipefail
+          echo "DEPLOY_STEP=Healthcheck" >> "$GITHUB_ENV"
+          
+          healthcheck_service="${SERVICE_NAME}-healthcheck-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          cleanup() {
+            docker --context swarm service rm "$healthcheck_service" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          cleanup
+
+          HEALTHCHECK_URL="http://${{ env.SERVICE_NAME }}/${{ env.APP_NAME }}/health"
+
+          echo "Healthcheck URL: ${HEALTHCHECK_URL}"
+
+          docker --context swarm service create \
+            --name "$healthcheck_service" \
+            --detach=false \
+            --restart-condition none \
+            --mode replicated-job \
+            --network "$DATA_NETWORK" \
+            --env "HEALTHCHECK_URL=$HEALTHCHECK_URL" \
+            --entrypoint sh \
+            curlimages/curl:8.10.1 \
+              -c '
+                for i in $(seq 1 30); do
+                  echo "Healthcheck attempt $i/30"
+
+                  if curl --fail --silent --show-error --max-time 5 \
+                    "$HEALTHCHECK_URL"; then
+                    echo "Healthcheck passed"
+                    exit 0
+                  fi
+
+                  echo "Healthcheck attempt $i failed"
+                  sleep 5
+                done
+
+                echo "Healthcheck failed"
+                exit 1
+              '
+
+      - name: Notify successful deployment
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
+        if: success()
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MESSAGE="✅ DEPLOY SUCCESS
+
+          Service: ${SERVICE_NAME}
+          Environment: ${ENVIRONMENT}
+          Version: dev-${SHORT_SHA}
+          Commit: ${SHORT_SHA}
+          Branch: ${GITHUB_REF_NAME}
+
+          👤 Triggered by: ${GITHUB_ACTOR}
+
+          🐳 Image:
+          ${IMAGE_REF}
+
+          🏥 Healthcheck: OK
+          📦 Swarm service: ${SWARM_SERVICE}
+
+          🔗 GitHub:
+          ${RUN_URL}"
+
+          if ! curl -sS -X POST \
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${TELEGRAM_CHAT_ID}" \
+                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
+                --data-urlencode "text=${MESSAGE}"; then
+              echo "Failed to send Telegram notification"
+          fi
+
+      - name: Notify failed deployment
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
+        if: failure()
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MESSAGE="❌ DEPLOY FAILED
+
+          Service: ${SERVICE_NAME}
+          Environment: ${ENVIRONMENT}
+          Version: dev-${SHORT_SHA}
+          Commit: ${SHORT_SHA}
+          Branch: ${GITHUB_REF_NAME}
+
+          👤 Triggered by: ${GITHUB_ACTOR}
+
+          💥 Failed step:
+          ${DEPLOY_STEP:-Unknown}
+
+          📦 Swarm service:
+          ${SWARM_SERVICE}
+
+          🔗 GitHub:
+          ${RUN_URL}"
+
+          if ! curl -sS -X POST \
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${TELEGRAM_CHAT_ID}" \
+                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
+                --data-urlencode "text=${MESSAGE}"; then
+              echo "Failed to send Telegram notification"
+          fi

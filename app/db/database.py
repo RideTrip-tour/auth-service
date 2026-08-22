@@ -1,9 +1,7 @@
 from fastapi import Depends
-
 from fastapi_users.db import (
     SQLAlchemyUserDatabase,
 )
-
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -22,7 +20,7 @@ db_url = URL.create(
 engine = create_async_engine(
     db_url,
     pool_pre_ping=True,
-    )
+)
 AsyncSessionLocal = async_sessionmaker(
     engine, expire_on_commit=False, class_=AsyncSession
 )

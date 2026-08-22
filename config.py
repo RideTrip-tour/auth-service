@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 
-    origin: str = "http://trip.com"
+    origin: str = "https://trip.com"
     lk_path: str = "users/me/"
     password_recovery_path: str = Field(
         validation_alias="PASSWORD_RECOVERY_PATH",

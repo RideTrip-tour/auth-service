@@ -54,7 +54,7 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     assert recipient == user.email
     assert subject == "Восстановление доступа"
 
-    recovery_url = urlparse(body.split("http://trip.com", 1)[1].splitlines()[0])
+    recovery_url = urlparse(body.split("https://trip.com", 1)[1].splitlines()[0])
     assert recovery_url.path == settings.password_recovery_path
     assert parse_qs(recovery_url.query)["token"] == [token]
     assert "Ссылка действует 1 час." in body
@@ -232,15 +232,15 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
         patch.object(
             user_manager, "on_after_reset_password", new=AsyncMock()
         ) as on_after_reset_password_mock,
+        pytest.raises(HTTPException) as exc_info,
     ):
-        with pytest.raises(HTTPException) as exc_info:
-            await route.endpoint(
-                request=request,
-                user_update_pass_schema=user_update,
-                user=user,
-                user_manager=user_manager,
-                strategy=strategy,
-            )
+        await route.endpoint(
+            request=request,
+            user_update_pass_schema=user_update,
+            user=user,
+            user_manager=user_manager,
+            strategy=strategy,
+        )
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "UPDATE_USER_INVALID_PASSWORD"
@@ -474,14 +474,14 @@ async def test_request_change_email_rejects_wrong_current_email(
         patch.object(
             mock_user_db, "get_by_email", new=AsyncMock(wraps=mock_user_db.get_by_email)
         ) as get_by_email_mock,
+        pytest.raises(HTTPException) as exc_info,
     ):
-        with pytest.raises(HTTPException) as exc_info:
-            await route.endpoint(
-                request=SimpleNamespace(),
-                user_update_email_schema=user_update,
-                user=user,
-                user_manager=user_manager,
-            )
+        await route.endpoint(
+            request=SimpleNamespace(),
+            user_update_email_schema=user_update,
+            user=user,
+            user_manager=user_manager,
+        )
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "LOGIN_BAD_CREDENTIALS"

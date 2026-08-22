@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
-from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
 import secrets
-from sqlalchemy import DateTime, ForeignKey, JSON, func, Integer, String
+from datetime import datetime, timedelta
+
+from fastapi_users.db import SQLAlchemyBaseOAuthAccountTable, SQLAlchemyBaseUserTable
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from app.db.base import Base
-
 
 USER_ID_FK = "user.id"
 
@@ -31,13 +31,13 @@ class AuditMixin:
     )
 
     def soft_delete(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(datetime.UTC)
         self.deleted_at = now
         self.updated_at = now
 
     def restore(self) -> None:
         self.deleted_at = None
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(datetime.UTC)
 
 
 class OAuthAccount(AuditMixin, SQLAlchemyBaseOAuthAccountTable[int], Base):
@@ -93,7 +93,7 @@ class RefreshToken(AuditMixin, Base):
     def create(user_id: int, expires_days: int = 7) -> "RefreshToken":
         """Создаёт новый refresh token"""
         token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+        expires_at = datetime.now(datetime.UTC) + timedelta(days=expires_days)
         return RefreshToken(user_id=user_id, token=token, expires_at=expires_at)
 
 
@@ -124,7 +124,7 @@ class EmailChangeRequest(AuditMixin, Base):
         new_email: str,
         lifetime_seconds: int,
     ) -> "EmailChangeRequest":
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=lifetime_seconds)
+        expires_at = datetime.now(datetime.UTC) + timedelta(seconds=lifetime_seconds)
         return EmailChangeRequest(
             user_id=user_id,
             token=token,

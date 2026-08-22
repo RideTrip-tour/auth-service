@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-from typing import List
 
 import pytest
 
@@ -10,8 +9,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from app.services.email import send_email  # noqa: E402
-from config import settings  # noqa: E402
+from app.services.email import send_email
+from config import settings
 
 
 def _attach_caplog_to_email_logger(caplog):
@@ -38,7 +37,7 @@ async def test_send_email_debug_mode_logs_only(caplog):
         email_logger.removeHandler(caplog.handler)
 
     # then
-    messages: List[str] = [record.getMessage() for record in caplog.records]
+    messages: list[str] = [record.getMessage() for record in caplog.records]
     assert any("Email DEBUG mode. Письмо НЕ отправлено" in m for m in messages)
 
 
@@ -59,7 +58,7 @@ async def test_send_email_missing_config_logs_warning(caplog):
         email_logger.removeHandler(caplog.handler)
 
     # then
-    messages: List[str] = [record.getMessage() for record in caplog.records]
+    messages: list[str] = [record.getMessage() for record in caplog.records]
     assert any("Email settings are not configured" in m for m in messages)
 
 

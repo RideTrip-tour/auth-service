@@ -7,6 +7,6 @@ class ResetPass(BaseModel, PasswordValidator):
     password: str
     token: str
 
+
 class EmailForgotPass(BaseModel, EmailValidator):
     email: str
-    

@@ -2,17 +2,21 @@
 
 import os
 import sys
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+
 import pytest
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from config import settings  # noqa: E402
-from app.services.users import CookieTransportCustom, UserManager, get_strategy  # noqa: E402
+from app.services.users import (
+    CookieTransportCustom,
+    UserManager,
+    get_strategy,
+)
+from config import settings
 
 
 def _parse_set_cookie_headers(response):
@@ -153,17 +157,22 @@ async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
     mock_user_db.get_by_email_result = existing
 
     async def _fake_login(*_args, **_kwargs):
-        return await transport.get_login_response("access.jwt.token", "refresh.jwt.token")
+        return await transport.get_login_response(
+            "access.jwt.token", "refresh.jwt.token"
+        )
 
     route = _get_route(app, "auth:cookie.login")
     user_manager = UserManager(mock_user_db)
 
-    with patch(
-        "app.services.users.UserManager.authenticate",
-        new=AsyncMock(return_value=existing),
-    ), patch(
-        "app.services.users.auth_backend.login",
-        new=AsyncMock(side_effect=_fake_login),
+    with (
+        patch(
+            "app.services.users.UserManager.authenticate",
+            new=AsyncMock(return_value=existing),
+        ),
+        patch(
+            "app.services.users.auth_backend.login",
+            new=AsyncMock(side_effect=_fake_login),
+        ),
     ):
         response = await route.endpoint(
             request=SimpleNamespace(),

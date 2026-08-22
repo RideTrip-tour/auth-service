@@ -6,7 +6,6 @@ from fastapi_users.router.common import ErrorCode, ErrorModel
 
 from app.schemas.reset_pass import EmailForgotPass, ResetPass
 
-
 RESET_PASSWORD_RESPONSES: OpenAPIResponseType = {
     status.HTTP_400_BAD_REQUEST: {
         "model": ErrorModel,
@@ -61,8 +60,6 @@ def get_reset_password_router(
             await user_manager.forgot_password(user, request)
         except exceptions.UserInactive:
             pass
-
-        return None
 
     @router.post(
         "/reset-password",

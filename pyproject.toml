@@ -1,0 +1,10 @@
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/env.py" = ["F403"]

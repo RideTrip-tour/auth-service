@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from typing import Optional
+import datetime
 
 from fastapi import Depends
 from sqlalchemy import delete, select
@@ -29,10 +28,10 @@ class SQLAlchemyRefreshTokenDatabase:
         token: str,
         with_user: bool = False,
         with_for_update: bool = False,
-    ) -> Optional[RefreshToken]:
+    ) -> RefreshToken | None:
         statement = select(self.token_table).where(
             self.token_table.token == token,
-            self.token_table.expires_at > datetime.now(timezone.utc),
+            self.token_table.expires_at > datetime.datetime.now(datetime.UTC),
         )
         if with_user:
             statement = statement.options(selectinload(self.token_table.user))

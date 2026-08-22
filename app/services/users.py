@@ -2,11 +2,10 @@ import logging
 import secrets
 from datetime import datetime
 from textwrap import dedent
-from typing import Generic
 from urllib.parse import urlencode
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi_users import (
     BaseUserManager,
     FastAPIUsers,
@@ -28,6 +27,7 @@ from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import update as sqlalchemy_update
 
+import app.services.audit as audit_service
 from app.db.database import AsyncSessionLocal, get_user_db
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
 from app.db.models import User
@@ -36,7 +36,6 @@ from app.routes.auth import get_auth_router
 from app.routes.register import get_register_router, get_verify_router
 from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
-import app.services.audit as audit_service
 from app.services.email import send_email
 from app.utils.registration_token import (
     InvalidRegistrationToken,
@@ -72,11 +71,10 @@ class JWTStrategyCustom(JWTStrategy):
         )
 
     async def destroy_token(self, token: str, user: models.UP) -> None:
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                token_db = SQLAlchemyRefreshTokenDatabase(session)
-                if token:
-                    await token_db.delete_by_token(token)
+        async with AsyncSessionLocal() as session, session.begin():
+            token_db = SQLAlchemyRefreshTokenDatabase(session)
+            if token:
+                await token_db.delete_by_token(token)
 
     async def destroy_tokens_by_user(self, user: models.UP) -> None:
         async with AsyncSessionLocal() as session:
@@ -86,9 +84,7 @@ class JWTStrategyCustom(JWTStrategy):
                     await token_db.delete_by_user_id(user.id)
 
 
-class FastAPIUsersCustom(
-    FastAPIUsers[models.UP, models.ID], Generic[models.UP, models.ID]
-):
+class FastAPIUsersCustom[UP: models.UserProtocol, ID](FastAPIUsers[UP, ID]):
     """Переопределенный FastAPIUsers"""
 
     def __init__(self, get_user_manager, auth_backends):
@@ -165,7 +161,8 @@ class FastAPIUsersCustom(
     def get_reset_password_router(self) -> APIRouter:
         """Return a reset password process router."""
         return get_reset_password_router(self.get_user_manager)
-    
+
+
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     reset_password_token_secret = SECRET
     reset_password_token_lifetime_seconds = (
@@ -297,7 +294,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         """
         Отправляем cсылку для подтверждения регистрации пользователю.
 
-        В cсылку включаем зашифрованный токен, в котором лежит необходимая 
+        В cсылку включаем зашифрованный токен, в котором лежит необходимая
         информация для регистрации пользователя.
         """
         user_dict["aud"] = self.verification_token_audience
@@ -658,7 +655,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_id=user.id,
             details={"change_type": "password"},
         )
-        return
 
 
 class CookieTransportCustom(CookieTransport):
@@ -778,10 +774,9 @@ class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
     ) -> Response:
         access_token = await strategy.write_token(user)
 
-        async with self.session_factory() as session:
-            async with session.begin():
-                token_db = SQLAlchemyRefreshTokenDatabase(session)
-                refresh_token = await token_db.create(user.id)
+        async with self.session_factory() as session, session.begin():
+            token_db = SQLAlchemyRefreshTokenDatabase(session)
+            refresh_token = await token_db.create(user.id)
         await audit_service.log_event(
             audit_service.AuditEventType.SESSION_CREATED,
             user_id=user.id,

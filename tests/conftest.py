@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +12,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from config import settings  # noqa: E402
+from config import settings
 
 
 @pytest.fixture(autouse=True)
@@ -97,10 +97,11 @@ class MockUserDb:
         self.get_call_id = user_id
         return self.get_result
 
-    async def reset_password(self,
-            token: str,
-            password: str,
-            request,
+    async def reset_password(
+        self,
+        token: str,
+        password: str,
+        request,
     ):
         self.reset_pass_called = True
         self.reset_pass_token = token
@@ -143,6 +144,6 @@ async def client(auth_app):
     """Async HTTP-клиент для вызова API аутентификации."""
     async with AsyncClient(
         transport=ASGITransport(app=auth_app),
-        base_url="http://test",
+        base_url="https://test",
     ) as ac:
         yield ac

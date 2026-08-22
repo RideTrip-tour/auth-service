@@ -64,16 +64,15 @@ async def log_event(
         payload.update(details)
 
     try:
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                session.add(
-                    UserActionLog(
-                        event_type=event_type,
-                        user_id=user_id,
-                        success=success,
-                        reason=reason,
-                        details=payload or None,
-                    )
+        async with AsyncSessionLocal() as session, session.begin():
+            session.add(
+                UserActionLog(
+                    event_type=event_type,
+                    user_id=user_id,
+                    success=success,
+                    reason=reason,
+                    details=payload or None,
                 )
+            )
     except Exception:
         logger.exception("Failed to persist audit event %s", event_type)
