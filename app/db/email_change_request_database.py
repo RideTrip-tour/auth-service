@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ class SQLAlchemyEmailChangeRequestDatabase:
     async def get_valid(self, token: str) -> EmailChangeRequest | None:
         statement = select(self.token_table).where(
             self.token_table.token == token,
-            self.token_table.expires_at > datetime.now(datetime.UTC),
+            self.token_table.expires_at > datetime.now(UTC),
         )
         result = await self.session.execute(statement)
         return result.scalars().first()
