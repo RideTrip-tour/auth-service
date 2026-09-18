@@ -44,8 +44,10 @@ class UserUpdateEmail(schemas.CreateUpdateDictModel, PasswordValidator, EmailVal
             raise ValueError("Новый email не должен совпадать с текущим")
         return self
 
+
 class UserUpdate(schemas.BaseUserUpdate):
     pass
+
 
 class UserBeforeVerify(UserRead):
     is_verified: bool = True

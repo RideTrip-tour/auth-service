@@ -12,75 +12,82 @@ from app.services.users import fastapi_users, get_user_manager
 
 logger = logging.getLogger("admin.routes")
 
-admin_routes = APIRouter(dependencies=
-[Depends(fastapi_users.current_user(active=True,superuser=True))])
-
+admin_routes = APIRouter(
+    dependencies=[Depends(fastapi_users.current_user(active=True, superuser=True))]
+)
 
 
 @admin_routes.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удалить пользователя по id",
-    description="Удалить пользователя по id"
- 
+    description="Удалить пользователя по id",
 )
-async def user_delete(id: int,user_manager: BaseUserManager = Depends(get_user_manager)):
+async def user_delete(
+    id: int, user_manager: BaseUserManager = Depends(get_user_manager)
+):
     try:
         user = await user_manager.get(id)
         await user_manager.delete(user)
-        return 
+        return
     except exceptions.UserNotExists:
-        raise HTTPException(status_code=404,detail="Пользователь не найден")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
 
 @admin_routes.patch(
     "/{id}",
     status_code=status.HTTP_200_OK,
     response_model=UserRead,
     summary="Изменить пользователя по id",
-    description="Изменяет данные пользователя по id"
-    )
-async def user_update(id: int,user_update: UserUpdate, user_manager: BaseUserManager = Depends(get_user_manager)):
+    description="Изменяет данные пользователя по id",
+)
+async def user_update(
+    id: int,
+    user_update: UserUpdate,
+    user_manager: BaseUserManager = Depends(get_user_manager),
+):
     try:
         user = await user_manager.get(id)
-        updated = await user_manager.update(user_update,user)
+        updated = await user_manager.update(user_update, user)
         return updated
     except exceptions.UserNotExists:
-        raise HTTPException(status_code=404,detail="Пользователь не найден")
-    
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+
 @admin_routes.post(
     "/",
-    status_code = status.HTTP_201_CREATED,
+    status_code=status.HTTP_201_CREATED,
     response_model=UserRead,
     summary="Создать нового пользователя",
-    description="Создает пользователя с заданными параметрами. Доступно только суперпользователям."
+    description="Создает пользователя с заданными параметрами. Доступно только суперпользователям.",
 )
-async def user_create(user: UserCreate,user_manager: BaseUserManager = Depends(get_user_manager)):
+async def user_create(
+    user: UserCreate, user_manager: BaseUserManager = Depends(get_user_manager)
+):
     try:
         new_user = await user_manager.create(user)
         return new_user
 
     except exceptions.UserAlreadyExists:
-        raise HTTPException(status_code=400,detail="Не удалось создать пользователя")
-    
+        raise HTTPException(status_code=400, detail="Не удалось создать пользователя")
+
+
 @admin_routes.get(
     "/",
-    status_code = status.HTTP_200_OK,
+    status_code=status.HTTP_200_OK,
     response_model=list[UserRead],
     summary="Получить список пользователей по параметрам(id,email)",
-    description="Получает список пользователь по критериям id,email"
-
+    description="Получает список пользователь по критериям id,email",
 )
-async def get_user(id: int | None = None,email: str | None = None,session = Depends(get_async_session)):
+async def get_user(
+    id: int | None = None, email: str | None = None, session=Depends(get_async_session)
+):
     query = select(User)
     if id is not None:
         query = query.filter(User.id == id)
     if email is not None:
         query = query.filter(User.email == email)
-    
+
     result = await session.execute(query)
     users = result.scalars().all()
     return users
-
-
-
-
