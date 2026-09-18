@@ -22,6 +22,7 @@ admin_routes = APIRouter(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удалить пользователя по id",
     description="Удалить пользователя по id",
+    responses={404: {"description": "Пользователь не найден"}},
 )
 async def user_delete(
     id: int, user_manager: BaseUserManager = Depends(get_user_manager)
@@ -40,6 +41,7 @@ async def user_delete(
     response_model=UserRead,
     summary="Изменить пользователя по id",
     description="Изменяет данные пользователя по id",
+    responses={404: {"description": "Пользователь не найден"}},
 )
 async def user_update(
     id: int,
@@ -60,6 +62,7 @@ async def user_update(
     response_model=UserRead,
     summary="Создать нового пользователя",
     description="Создает пользователя с заданными параметрами. Доступно только суперпользователям.",
+    responses={400: {"description": "Не удалось создать пользователя"}},
 )
 async def user_create(
     user: UserCreate, user_manager: BaseUserManager = Depends(get_user_manager)
