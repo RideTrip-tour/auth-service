@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.db.database import get_async_session
 from app.db.models import User
-from app.schemas.users import UserCreate, UserUpdate
+from app.schemas.users import UserCreate, UserRead, UserUpdate
 from app.services.users import fastapi_users, get_user_manager
 
 logger = logging.getLogger("admin.routes")
@@ -20,8 +20,8 @@ admin_routes = APIRouter(dependencies=
 @admin_routes.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
-
-
+    summary="Удалить пользователя по id",
+    description="Удалить пользователя по id"
  
 )
 async def user_delete(id: int,user_manager: BaseUserManager = Depends(get_user_manager)):
@@ -35,6 +35,9 @@ async def user_delete(id: int,user_manager: BaseUserManager = Depends(get_user_m
 @admin_routes.patch(
     "/{id}",
     status_code=status.HTTP_200_OK,
+    response_model=UserRead,
+    summary="Изменить пользователя по id",
+    description="Изменяет данные пользователя по id"
     )
 async def user_update(id: int,user_update: UserUpdate, user_manager: BaseUserManager = Depends(get_user_manager)):
     try:
@@ -46,7 +49,10 @@ async def user_update(id: int,user_update: UserUpdate, user_manager: BaseUserMan
     
 @admin_routes.post(
     "/",
-    status_code = status.HTTP_201_CREATED
+    status_code = status.HTTP_201_CREATED,
+    response_model=UserRead,
+    summary="Создать нового пользователя",
+    description="Создает пользователя с заданными параметрами. Доступно только суперпользователям."
 )
 async def user_create(user: UserCreate,user_manager: BaseUserManager = Depends(get_user_manager)):
     try:
@@ -58,7 +64,11 @@ async def user_create(user: UserCreate,user_manager: BaseUserManager = Depends(g
     
 @admin_routes.get(
     "/",
-    status_code = status.HTTP_200_OK
+    status_code = status.HTTP_200_OK,
+    response_model=list[UserRead],
+    summary="Получить список пользователей по параметрам(id,email)",
+    description="Получает список пользователь по критериям id,email"
+
 )
 async def get_user(id: int | None = None,email: str | None = None,session = Depends(get_async_session)):
     query = select(User)
