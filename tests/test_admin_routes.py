@@ -27,7 +27,7 @@ def override_admin(app):
 async def test_get_user(client,app,override_admin):
     mock_db = AsyncMock()
     mock_result = MagicMock()
-    mock_result.scalars.return_value.all.return_value = [User(id=1,email="admin@test.com",is_superuser=True)]
+    mock_result.scalars.return_value.all.return_value = [User(id=1,email="admin@test.com",is_superuser=True,is_active=True,is_verified=False)]
     mock_db.execute.return_value = mock_result
     async def mock_get_db():
         yield mock_db
@@ -44,7 +44,7 @@ async def test_get_user(client,app,override_admin):
 @pytest.mark.asyncio
 async def test_delete_user(client,app,override_admin):
     mock_user_manager = AsyncMock()
-    mock_user_manager.get.return_value = User(id=1, email="test@test.com")
+    mock_user_manager.get.return_value = User(id=1, email="test@test.com",is_active=True,is_verified=False,is_superuser=False)
 
     async def mock_get_user_manager():
         yield mock_user_manager
@@ -68,8 +68,8 @@ async def test_delete_user_not_found(client,app,override_admin):
 @pytest.mark.asyncio
 async def test_update_user(client,app,override_admin):
     mock_user_manager = AsyncMock()
-    mock_user_manager.get.return_value = User(id=1, email="test@test.com")
-    mock_user_manager.update.return_value = User(id=1, email="test@test.com",is_active=False)
+    mock_user_manager.get.return_value = User(id=1,  email="test@test.com",is_active=False,is_superuser=True,is_verified=False)
+    mock_user_manager.update.return_value = User(id=1, email="test@test.com",is_active=False,is_superuser=True,is_verified=False)
 
     async def mock_get_user_manager():
         yield mock_user_manager
@@ -82,7 +82,7 @@ async def test_update_user(client,app,override_admin):
 @pytest.mark.asyncio
 async def test_create_user(client,app,override_admin):
     mock_user_manager = AsyncMock()
-    mock_user_manager.create.return_value = User(id=1, email="test@test.com")
+    mock_user_manager.create.return_value = User(id=1, email="test@test.com",is_active=False,is_superuser=True,is_verified=False)
 
 
     async def mock_get_user_manager():
