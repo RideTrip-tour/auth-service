@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # =========================
+    # Gateway
+    # =========================
+    gateway_url: str = "http://gateway:8000"
+    service_id: str = "auth"
+    service_token: str = ""
+
+    # =========================
     # Redis
     # =========================
     redis_url: str = "redis://redis:6379"

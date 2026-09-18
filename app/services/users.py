@@ -37,6 +37,7 @@ from app.routes.register import get_register_router, get_verify_router
 from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
 from app.services.email import send_email
+from app.services.gateway import gateway_cleint
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -416,6 +417,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         if type_operation == "register":
             created_user = await self.register_user(data)
+            try:
+                await self.create_user_profile(created_user)
+            except Exception:
+                logger.exception(
+                    "Не удалось создать профиль для пользователя user_id=%s. "
+                    "Выполняется удаление пользователя.",
+                    created_user.id,
+                )
+                await self.user_db.delete(created_user)
+                raise
             return created_user
 
         if type_operation == "change_email":
@@ -441,6 +452,13 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             )
             return response
         raise exceptions.InvalidVerifyToken()
+
+    async def create_user_context(self, user: models.UP) -> str:
+        strategy = get_strategy()
+        return await strategy.write_token(user)
+
+    async def create_user_profile(self, user: models.UP) -> None:
+        await gateway_cleint.create_profile(await self.create_user_context(user))
 
     async def register_user(self, data: dict) -> models.UP:
         email = data["email"]
