@@ -10,7 +10,7 @@ class GatewayClient:
 
     async def create_profile(self, user) -> None:
         await self._post(
-            "/api/profile/",
+            "/api/profile/create/",
             user_context=await self._create_user_context(user),
         )
 
