@@ -1,5 +1,7 @@
 import logging.config
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -14,6 +16,7 @@ from app.schemas.users import (
     UserUpdateEmail,
     UserUpdatePassword,
 )
+from app.services.gateway import GatewayClient
 from app.services.users import auth_backend, fastapi_users
 from app.utils.handler import remove_validation_input
 from app.utils.logging import LOGGING_CONFIG
@@ -21,12 +24,24 @@ from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    http_client = httpx.AsyncClient(
+        base_url=settings.gateway_url,
+        timeout=10.0,
+    )
+    app.state.gateway_client = GatewayClient(http_client)
+    yield
+    await http_client.aclose()
+
+
 app = FastAPI(
+    lifespan=lifespan,
     docs_url=f"/api/{settings.app_name.split('-')[0]}/docs",
     redoc_url=f"/api/{settings.app_name.split('-')[0]}/redoc",
     openapi_url=f"/api/{settings.app_name.split('-')[0]}/openapi.json",
 )
-
 
 app.middleware("http")(limit_login_form_body)
 

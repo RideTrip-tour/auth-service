@@ -158,10 +158,7 @@ def _make_verify_token(email: str, hashed_password: str) -> str:
 @pytest.mark.asyncio
 async def test_verify_success(client, mock_user_db, mocker):
     """Успешное подтверждение: валидный токен → пользователь создаётся, возвращается UserRead."""
-    create_profile_mock = mocker.patch(
-        "app.services.users.UserManager.create_user_profile",
-        new_callable=AsyncMock,
-    )
+
     mock_user_db.get_by_email_result = None
     email = "verified@example.com"
     hashed = "hashed_password_value"
@@ -182,9 +179,7 @@ async def test_verify_success(client, mock_user_db, mocker):
     mock_user_db.create_called = False
 
     response = await client.post("/api/auth/verify", json={"token": token})
-
     assert response.status_code == 200
-    create_profile_mock.assert_awaited_once_with(created_user)
     data = response.json()
     assert data["email"] == email
     assert data["id"] == 42

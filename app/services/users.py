@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import logging
 import secrets
 from datetime import datetime
 from textwrap import dedent
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
+
+if TYPE_CHECKING:
+    from app.services.gateway import GatewayClient
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -37,7 +43,6 @@ from app.routes.register import get_register_router, get_verify_router
 from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
 from app.services.email import send_email
-from app.services.gateway import gateway_cleint
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -173,6 +178,14 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     verification_token_lifetime_seconds = settings.verification_token_lifetime_seconds
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = "fastapi-users:change_email"
+
+    def __init__(
+        self,
+        user_db: SQLAlchemyUserDatabase,
+        gateway_client: GatewayClient,
+    ):
+        super().__init__(user_db)
+        self.gateway_client = gateway_client
 
     @staticmethod
     def _build_password_recovery_link(token: str) -> str:
@@ -418,7 +431,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         if type_operation == "register":
             created_user = await self.register_user(data)
             try:
-                await self.create_user_profile(created_user)
+                await self.gateway_client.create_profile(created_user)
             except Exception:
                 logger.exception(
                     "Не удалось создать профиль для пользователя user_id=%s. "
@@ -452,13 +465,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             )
             return response
         raise exceptions.InvalidVerifyToken()
-
-    async def create_user_context(self, user: models.UP) -> str:
-        strategy = get_strategy()
-        return await strategy.write_token(user)
-
-    async def create_user_profile(self, user: models.UP) -> None:
-        await gateway_cleint.create_profile(await self.create_user_context(user))
 
     async def register_user(self, data: dict) -> models.UP:
         email = data["email"]
@@ -805,8 +811,14 @@ class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
         )
 
 
-async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db)):
-    yield UserManager(user_db)
+async def get_user_manager(
+    request: Request,
+    user_db: SQLAlchemyUserDatabase = Depends(get_user_db),
+):
+    yield UserManager(
+        user_db,
+        request.app.state.gateway_client,
+    )
 
 
 cookie_transport = CookieTransportCustom(

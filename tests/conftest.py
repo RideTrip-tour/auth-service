@@ -72,6 +72,8 @@ class MockUserDb:
         self.reset_pass_called = None
         self.reset_pass_token = None
         self.reset_pass_password = None
+        self.delete_called = False
+        self.delete_call_user = None
 
     async def get_by_email(self, email: str):
         self.get_by_email_calls.append(email)
@@ -97,6 +99,10 @@ class MockUserDb:
         self.get_call_id = user_id
         return self.get_result
 
+    async def delete(self, user):
+        self.delete_called = True
+        self.delete_call_user = user
+
     async def reset_password(
         self,
         token: str,
@@ -116,10 +122,19 @@ def mock_user_db() -> MockUserDb:
 
 
 @pytest.fixture
-def app():
+def mock_gateway_client() -> MagicMock:
+    """Мок GatewayClient."""
+    gateway_client = MagicMock()
+    gateway_client.create_profile = AsyncMock()
+    return gateway_client
+
+
+@pytest.fixture
+def app(mock_gateway_client):
     """Приложение FastAPI для тестов."""
     from main import app as fastapi_app
 
+    fastapi_app.state.gateway_client = mock_gateway_client
     return fastapi_app
 
 

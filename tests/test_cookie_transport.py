@@ -142,7 +142,9 @@ async def test_refresh_sets_new_access_and_refresh_cookies(transport):
 
 
 @pytest.mark.asyncio
-async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
+async def test_login_sets_cookies(
+    app, mock_user_db, mock_gateway_client, transport, mock_audit_log
+):
     existing = type(
         "User",
         (),
@@ -162,7 +164,7 @@ async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
         )
 
     route = _get_route(app, "auth:cookie.login")
-    user_manager = UserManager(mock_user_db)
+    user_manager = UserManager(mock_user_db, mock_gateway_client)
 
     with (
         patch(
