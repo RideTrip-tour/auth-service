@@ -122,19 +122,10 @@ def mock_user_db() -> MockUserDb:
 
 
 @pytest.fixture
-def mock_gateway_client() -> MagicMock:
-    """Мок GatewayClient."""
-    gateway_client = MagicMock()
-    gateway_client.create_profile = AsyncMock()
-    return gateway_client
-
-
-@pytest.fixture
-def app(mock_gateway_client):
+def app():
     """Приложение FastAPI для тестов."""
     from main import app as fastapi_app
 
-    fastapi_app.state.gateway_client = mock_gateway_client
     return fastapi_app
 
 

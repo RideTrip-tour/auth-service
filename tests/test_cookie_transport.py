@@ -3,7 +3,7 @@
 import os
 import sys
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,10 +11,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.services.jwt import get_strategy
 from app.services.users import (
     CookieTransportCustom,
     UserManager,
-    get_strategy,
 )
 from config import settings
 
@@ -142,9 +142,7 @@ async def test_refresh_sets_new_access_and_refresh_cookies(transport):
 
 
 @pytest.mark.asyncio
-async def test_login_sets_cookies(
-    app, mock_user_db, mock_gateway_client, transport, mock_audit_log
-):
+async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
     existing = type(
         "User",
         (),
@@ -164,7 +162,7 @@ async def test_login_sets_cookies(
         )
 
     route = _get_route(app, "auth:cookie.login")
-    user_manager = UserManager(mock_user_db, mock_gateway_client)
+    user_manager = UserManager(mock_user_db)
 
     with (
         patch(

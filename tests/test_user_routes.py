@@ -41,7 +41,7 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
         is_superuser=False,
         is_verified=True,
     )
-    manager = UserManager(SimpleNamespace(), MagicMock())
+    manager = UserManager(SimpleNamespace())
     token = "reset.token.value"
 
     with patch(
@@ -66,9 +66,9 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
 
 
 @pytest.mark.asyncio
-async def test_user_manager_update_uses_new_password(mock_user_db, mock_gateway_client):
+async def test_user_manager_update_uses_new_password(mock_user_db):
     """UserManager.update должен прокидывать в БД только новый пароль."""
-    manager = UserManager(mock_user_db, mock_gateway_client)
+    manager = UserManager(mock_user_db)
     user = SimpleNamespace(
         id=1,
         email="user@example.com",
@@ -105,7 +105,7 @@ async def test_user_manager_change_password_returns_none_on_stale_hash():
         refresh=AsyncMock(),
     )
     user_db = SimpleNamespace(session=session, user_table=User)
-    manager = UserManager(user_db, MagicMock())
+    manager = UserManager(user_db)
     user = SimpleNamespace(
         id=1,
         email="user@example.com",
@@ -156,7 +156,7 @@ async def test_change_password_success(app, mock_audit_log):
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = UserManager(SimpleNamespace(), MagicMock())
+    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
 
     with (
@@ -220,7 +220,7 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = UserManager(SimpleNamespace(), MagicMock())
+    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
 
     with (
@@ -260,7 +260,7 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
 
 @pytest.mark.asyncio
 async def test_request_change_email_sends_verification_link(
-    app, mock_user_db, mock_audit_log, mock_gateway_client
+    app, mock_user_db, mock_audit_log
 ):
     """Запрос смены email должен отправить письмо с токеном подтверждения."""
     route = _get_route(app, "users:patch_email_current_user")
@@ -277,7 +277,7 @@ async def test_request_change_email_sends_verification_link(
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db, mock_gateway_client)
+    user_manager = UserManager(mock_user_db)
 
     with (
         patch.object(
@@ -329,7 +329,7 @@ async def test_request_change_email_sends_verification_link(
 
 @pytest.mark.asyncio
 async def test_request_change_email_lowercases_emails(
-    app, mock_user_db, mock_audit_log, mock_gateway_client
+    app, mock_user_db, mock_audit_log
 ):
     """Email при запросе смены приводится к нижнему регистру до lookup и токена."""
     route = _get_route(app, "users:patch_email_current_user")
@@ -346,7 +346,7 @@ async def test_request_change_email_lowercases_emails(
         new_email="New@Example.COM",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db, mock_gateway_client)
+    user_manager = UserManager(mock_user_db)
 
     with (
         patch.object(
@@ -392,7 +392,7 @@ async def test_change_email_token_is_stored_and_replaces_previous_request():
     """При наличии SQLAlchemy session pending-токен смены email сохраняется в БД."""
     session = SimpleNamespace()
     user_db = SimpleNamespace(session=session)
-    manager = UserManager(user_db, MagicMock())
+    manager = UserManager(user_db)
     user = SimpleNamespace(id=7)
     token_db = SimpleNamespace(replace_for_user=AsyncMock())
 
@@ -446,7 +446,7 @@ async def test_request_validation_error_hides_input():
 
 @pytest.mark.asyncio
 async def test_request_change_email_rejects_wrong_current_email(
-    app, mock_user_db, mock_audit_log, mock_gateway_client
+    app, mock_user_db, mock_audit_log
 ):
     """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
@@ -463,7 +463,7 @@ async def test_request_change_email_rejects_wrong_current_email(
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db, mock_gateway_client)
+    user_manager = UserManager(mock_user_db)
 
     with (
         patch.object(

@@ -1,7 +1,6 @@
 import logging.config
 from contextlib import asynccontextmanager
 
-import httpx
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -27,13 +26,8 @@ logging.config.dictConfig(LOGGING_CONFIG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    http_client = httpx.AsyncClient(
-        base_url=settings.gateway_url,
-        timeout=10.0,
-    )
-    app.state.gateway_client = GatewayClient(http_client)
     yield
-    await http_client.aclose()
+    await GatewayClient().close()
 
 
 app = FastAPI(

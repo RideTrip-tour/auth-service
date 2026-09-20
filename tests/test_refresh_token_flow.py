@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.services.users import auth_backend, get_strategy
+from app.services.jwt import get_strategy
+from app.services.users import auth_backend
 
 
 class _AsyncContextManager:
@@ -88,10 +89,10 @@ async def test_destroy_token_deletes_only_current_token(mock_audit_log):
 
     with (
         patch(
-            "app.services.users.SQLAlchemyRefreshTokenDatabase",
+            "app.services.jwt.SQLAlchemyRefreshTokenDatabase",
             return_value=fake_token_db,
         ),
-        patch("app.services.users.AsyncSessionLocal", new=_FakeSessionFactory()),
+        patch("app.services.jwt.AsyncSessionLocal", new=_FakeSessionFactory()),
     ):
         strategy = get_strategy()
         await strategy.destroy_token("current.refresh.token", user)
