@@ -18,7 +18,6 @@ from fastapi_users.authentication import (
     AuthenticationBackend,
     Authenticator,
     CookieTransport,
-    JWTStrategy,
     Strategy,
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
@@ -37,6 +36,8 @@ from app.routes.register import get_register_router, get_verify_router
 from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
 from app.services.email import send_email
+from app.services.gateway import GatewayClient
+from app.services.jwt import get_strategy
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -54,34 +55,6 @@ google_oauth_client = GoogleOAuth2(
     settings.google_oauth_client_id,
     settings.google_oauth_client_secret,
 )
-
-
-class JWTStrategyCustom(JWTStrategy):
-    """Переопределяет payload JWT"""
-
-    async def write_token(self, user: models.UP) -> str:
-        data = {
-            "sub": str(user.id),
-            "is_active": bool(user.is_verified),
-            "is_superuser": bool(user.is_superuser),
-            "aud": settings.gateway_name,
-        }
-        return generate_jwt(
-            data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
-        )
-
-    async def destroy_token(self, token: str, user: models.UP) -> None:
-        async with AsyncSessionLocal() as session, session.begin():
-            token_db = SQLAlchemyRefreshTokenDatabase(session)
-            if token:
-                await token_db.delete_by_token(token)
-
-    async def destroy_tokens_by_user(self, user: models.UP) -> None:
-        async with AsyncSessionLocal() as session:
-            if user:
-                async with session.begin():
-                    token_db = SQLAlchemyRefreshTokenDatabase(session)
-                    await token_db.delete_by_user_id(user.id)
 
 
 class FastAPIUsersCustom[UP: models.UserProtocol, ID](FastAPIUsers[UP, ID]):
@@ -172,6 +145,13 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     verification_token_lifetime_seconds = settings.verification_token_lifetime_seconds
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = "fastapi-users:change_email"
+
+    def __init__(
+        self,
+        user_db: SQLAlchemyUserDatabase,
+    ):
+        super().__init__(user_db)
+        self.gateway_client = GatewayClient()
 
     @staticmethod
     def _build_password_recovery_link(token: str) -> str:
@@ -416,6 +396,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         if type_operation == "register":
             created_user = await self.register_user(data)
+            try:
+                await self.gateway_client.create_profile(created_user)
+            except Exception:
+                logger.exception(
+                    "Не удалось создать профиль для пользователя user_id=%s. "
+                    "Выполняется удаление пользователя.",
+                    created_user.id,
+                )
+                await self.user_db.delete(created_user)
+                raise
             return created_user
 
         if type_operation == "change_email":
@@ -787,7 +777,9 @@ class AuthenticationBackendCustom(AuthenticationBackend[User, int]):
         )
 
 
-async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db)):
+async def get_user_manager(
+    user_db: SQLAlchemyUserDatabase = Depends(get_user_db),
+):
     yield UserManager(user_db)
 
 
@@ -795,14 +787,6 @@ cookie_transport = CookieTransportCustom(
     cookie_name="access_token",
     cookie_max_age=settings.access_token_expire_sec,
 )
-
-
-def get_strategy() -> Strategy[models.UP, models.ID]:
-    return JWTStrategyCustom(
-        secret=SECRET,
-        lifetime_seconds=settings.access_token_expire_sec,
-        token_audience=settings.gateway_name,
-    )
 
 
 auth_backend = AuthenticationBackendCustom(

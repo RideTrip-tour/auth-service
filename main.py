@@ -1,4 +1,5 @@
 import logging.config
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
@@ -14,6 +15,7 @@ from app.schemas.users import (
     UserUpdateEmail,
     UserUpdatePassword,
 )
+from app.services.gateway import GatewayClient
 from app.services.users import auth_backend, fastapi_users
 from app.utils.handler import remove_validation_input
 from app.utils.logging import LOGGING_CONFIG
@@ -21,12 +23,19 @@ from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await GatewayClient().close()
+
+
 app = FastAPI(
+    lifespan=lifespan,
     docs_url=f"/api/{settings.app_name.split('-')[0]}/docs",
     redoc_url=f"/api/{settings.app_name.split('-')[0]}/redoc",
     openapi_url=f"/api/{settings.app_name.split('-')[0]}/openapi.json",
 )
-
 
 app.middleware("http")(limit_login_form_body)
 

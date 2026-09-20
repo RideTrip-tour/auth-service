@@ -72,6 +72,8 @@ class MockUserDb:
         self.reset_pass_called = None
         self.reset_pass_token = None
         self.reset_pass_password = None
+        self.delete_called = False
+        self.delete_call_user = None
 
     async def get_by_email(self, email: str):
         self.get_by_email_calls.append(email)
@@ -96,6 +98,10 @@ class MockUserDb:
         self.get_called = True
         self.get_call_id = user_id
         return self.get_result
+
+    async def delete(self, user):
+        self.delete_called = True
+        self.delete_call_user = user
 
     async def reset_password(
         self,
