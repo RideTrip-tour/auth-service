@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
@@ -5,6 +7,7 @@ from fastapi_users.password import PasswordHelper
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
 password_helper = PasswordHelper()
+logger = logging.getLogger("users.register")
 
 
 def get_register_router(
@@ -125,11 +128,13 @@ def get_verify_router(
             user = await user_manager.verify(token, request)
             return user_schema.model_validate(user)
         except (exceptions.InvalidVerifyToken, exceptions.UserNotExists) as exc:
+            logger.exception(ErrorCode.VERIFY_USER_BAD_TOKEN)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.VERIFY_USER_BAD_TOKEN,
             ) from exc
         except (exceptions.UserAlreadyVerified, exceptions.UserAlreadyExists) as exc:
+            logger.exception(ErrorCode.VERIFY_USER_ALREADY_VERIFIED)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.VERIFY_USER_ALREADY_VERIFIED,
