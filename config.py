@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # =========================
     gateway_url: str = "http://gateway:8000"
     service_id: str = "auth"
-    service_token: str = ""
+    service_token: str = Field(validation_alias="AUTH_SERVICE_TOKEN", default="")
 
     # =========================
     # Redis

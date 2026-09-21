@@ -398,14 +398,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             created_user = await self.register_user(data)
             try:
                 await self.gateway_client.create_profile(created_user)
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "Не удалось создать профиль для пользователя user_id=%s. "
                     "Выполняется удаление пользователя.",
                     created_user.id,
                 )
                 await self.user_db.delete(created_user)
-                raise
+                raise HTTPException(
+                    status_code=400, detail="Fail create profile"
+                ) from exc
             return created_user
 
         if type_operation == "change_email":
