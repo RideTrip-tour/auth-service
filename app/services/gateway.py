@@ -63,6 +63,7 @@ class GatewayClient:
                 method,
                 path,
                 headers=self._get_headers(user_context),
+                json={},
             )
             elapsed = time.monotonic() - started_at
             logger.info(
