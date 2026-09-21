@@ -790,7 +790,6 @@ cookie_transport = CookieTransportCustom(
     cookie_max_age=settings.access_token_expire_sec,
 )
 
-
 auth_backend = AuthenticationBackendCustom(
     name="cookie",
     transport=cookie_transport,
