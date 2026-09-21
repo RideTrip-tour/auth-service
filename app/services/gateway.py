@@ -1,7 +1,12 @@
+import logging
+import time
+
 import httpx
 
 from app.services.jwt import get_strategy
 from config import settings
+
+logger = logging.getLogger("servises.gateway")
 
 
 class GatewayClient:
@@ -45,12 +50,40 @@ class GatewayClient:
         path: str,
         user_context: str,
     ) -> None:
-        response = await self.client.request(
+        started_at = time.monotonic()
+
+        logger.info(
+            "Gateway request started: %s: %s",
             method,
             path,
-            headers=self._get_headers(user_context),
         )
-        response.raise_for_status()
+
+        try:
+            response = await self.client.request(
+                method,
+                path,
+                headers=self._get_headers(user_context),
+            )
+            elapsed = time.monotonic() - started_at
+            logger.info(
+                "Gateway request completed: %s: %s -> %s in %s s",
+                method,
+                path,
+                response.status_code,
+                elapsed,
+            )
+            response.raise_for_status()
+        except Exception:
+            elapsed = time.monotonic() - started_at
+
+            logger.info(
+                "Gateway request completed: %s: %s -> %s in %s s",
+                method,
+                path,
+                response.status_code,
+                elapsed,
+            )
+            raise
 
     async def close(self) -> None:
         await self.client.aclose()
