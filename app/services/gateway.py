@@ -29,7 +29,7 @@ class GatewayClient:
 
         await self._request(
             method="POST",
-            path="/api/profile/create/",
+            path="/api/profile/create",
             user_context=user_context,
         )
 
