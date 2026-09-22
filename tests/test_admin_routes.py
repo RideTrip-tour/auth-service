@@ -41,7 +41,7 @@ async def test_get_user(client, app, override_admin):
         yield mock_db
 
     app.dependency_overrides[get_async_session] = mock_get_db
-    response = await client.get("/api/admin/?id=1&email=admin@test.com")
+    response = await client.get("/api/admin/users/?id=1&email=admin@test.com")
     data = response.json()
     assert response.status_code == 200
     assert len(data) == 1
@@ -62,7 +62,7 @@ async def test_delete_user(client, app, override_admin):
         yield mock_user_manager
 
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
-    response = await client.delete("/api/admin/1")
+    response = await client.delete("/api/admin/users/1")
     assert response.status_code == 204
 
 
@@ -75,7 +75,7 @@ async def test_delete_user_not_found(client, app, override_admin):
         yield mock_user_manager
 
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
-    response = await client.delete("/api/admin/1")
+    response = await client.delete("/api/admin/users/1")
     assert response.status_code == 404
 
 
@@ -102,7 +102,7 @@ async def test_update_user(client, app, override_admin):
 
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
 
-    response = await client.patch("/api/admin/1", json={"is_active": False})
+    response = await client.patch("/api/admin/users/1", json={"is_active": False})
     assert response.status_code == 200
     assert response.json()["is_active"] == False
 
@@ -124,7 +124,7 @@ async def test_create_user(client, app, override_admin):
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
 
     response = await client.post(
-        "/api/admin/", json={"id": 1, "email": "test@test.com", "password": "123456789"}
+        "/api/admin/users", json={"id": 1, "email": "test@test.com", "password": "123456789"}
     )
     assert response.status_code == 201
     assert response.json()["email"] == "test@test.com"
@@ -141,6 +141,6 @@ async def test_create_user_already_exist(client, app, override_admin):
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
 
     response = await client.post(
-        "/api/admin/", json={"id": 1, "email": "test@test.com", "password": "123456789"}
+        "/api/admin/users", json={"id": 1, "email": "test@test.com", "password": "123456789"}
     )
     assert response.status_code == 400

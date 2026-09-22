@@ -70,7 +70,7 @@ app.include_router(
     tags=["users"],
 )
 
-app.include_router(admin_routes, prefix="/api/admin", tags=["admin"])
+app.include_router(admin_routes, prefix="/api/admin/users", tags=["admin"])
 
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])
 
