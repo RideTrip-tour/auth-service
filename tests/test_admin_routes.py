@@ -124,7 +124,8 @@ async def test_create_user(client, app, override_admin):
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
 
     response = await client.post(
-        "/api/admin/users", json={"id": 1, "email": "test@test.com", "password": "123456789"}
+        "/api/admin/users",
+        json={"id": 1, "email": "test@test.com", "password": "123456789"},
     )
     assert response.status_code == 201
     assert response.json()["email"] == "test@test.com"
@@ -141,6 +142,7 @@ async def test_create_user_already_exist(client, app, override_admin):
     app.dependency_overrides[get_user_manager] = mock_get_user_manager
 
     response = await client.post(
-        "/api/admin/users", json={"id": 1, "email": "test@test.com", "password": "123456789"}
+        "/api/admin/users",
+        json={"id": 1, "email": "test@test.com", "password": "123456789"},
     )
     assert response.status_code == 400
