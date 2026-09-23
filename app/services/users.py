@@ -286,16 +286,23 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         verify_token = encrypt_registration_token(signed_token)
         link = (
-            f"{settings.origin.rstrip('/')}/{settings.lk_path.lstrip('/')}"
+            f"{settings.origin.rstrip('/')}/auth/verify"
             f"?{urlencode({'verify_token': verify_token})}"
         )
         await send_email(
             user_dict["email"],
             "Подтверждение регистрации",
             f"""
-            Доброго времени суток!
+            <html>
+                <body>
+                    <p>Доброго времени суток!</p>
 
-            Для подтверждения регистрации перейдите по ссылке: {link}
+                    <p>
+                        Для подтверждения регистрации перейдите
+                        <a href="{link}">по ссылке</a>.
+                    </p>
+                </body>
+            </html>
             """,
         )
         logger.info(
