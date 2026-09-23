@@ -286,7 +286,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         verify_token = encrypt_registration_token(signed_token)
         link = (
-            f"{settings.origin.rstrip('/')}/{settings.lk_path.lstrip('/')}"
+            f"{settings.origin.rstrip('/')}/auth/verify"
             f"?{urlencode({'verify_token': verify_token})}"
         )
         await send_email(

@@ -44,7 +44,7 @@ async def test_register_success(client, mock_user_db):
     assert recipient == "newuser@example.com"
     assert subject == "Подтверждение регистрации"
 
-    match = re.search(r"verify_token=([^\s]+)", body)
+    match = re.search(r'verify_token=([^"\s&]+)', body)
     assert match is not None
     encrypted_token = unquote(match.group(1))
     with pytest.raises(jwt.DecodeError):
@@ -84,7 +84,7 @@ async def test_register_lowercases_email(client, mock_user_db):
     recipient, _, body = send_email_mock.call_args.args
     assert recipient == "newuser@example.com"
 
-    match = re.search(r"verify_token=([^\s]+)", body)
+    match = re.search(r'verify_token=([^"\s&]+)', body)
     assert match is not None
     payload = jwt.decode(
         decrypt_registration_token(unquote(match.group(1))),
