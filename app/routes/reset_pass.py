@@ -50,11 +50,8 @@ def get_reset_password_router(
     ):
         try:
             user = await user_manager.get_by_email(email_forgot_pass.email)
-        except exceptions.UserNotExists as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="USER NOT FOUND",
-            ) from exc
+        except exceptions.UserNotExists:
+            return
 
         try:
             await user_manager.forgot_password(user, request)
