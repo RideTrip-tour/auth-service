@@ -293,9 +293,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_dict["email"],
             "Подтверждение регистрации",
             f"""
-            Доброго времени суток!
+            <html>
+                <body>
+                    <p>Доброго времени суток!</p>
 
-            Для подтверждения регистрации перейдите по ссылке: {link}
+                    <p>
+                        Для подтверждения регистрации перейдите
+                        <a href="{link}">по ссылке</a>.
+                    </p>
+                </body>
+            </html>
             """,
         )
         logger.info(
