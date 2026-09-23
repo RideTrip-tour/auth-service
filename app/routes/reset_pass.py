@@ -51,14 +51,12 @@ def get_reset_password_router(
         try:
             user = await user_manager.get_by_email(email_forgot_pass.email)
         except exceptions.UserNotExists:
-            return None
+            pass
 
         try:
             await user_manager.forgot_password(user, request)
         except exceptions.UserInactive:
             pass
-
-        return None
 
     @router.post(
         "/reset-password",
