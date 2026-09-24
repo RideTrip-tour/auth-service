@@ -1,7 +1,10 @@
+import logging
 import logging.config
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import redis.asyncio as redis
+
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -22,12 +25,18 @@ from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("auth_service")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("auth-service is starting up")
+    redis_client = await redis.Redis.from_url(settings.redis_url)
+    app.state.redis = redis_client
     yield
     await GatewayClient().close()
+    await redis_client.aclose()
+    logger.info("auth-service is shutting down")
 
 
 app = FastAPI(
@@ -41,7 +50,7 @@ app.middleware("http")(limit_login_form_body)
 
 
 @app.exception_handler(RequestValidationError)
-async def request_validation_exception_handler(request, exc):
+async def request_validation_exception_handler(request: Request, exc):
     return JSONResponse(
         status_code=422,
         content={"detail": jsonable_encoder(remove_validation_input(exc.errors()))},

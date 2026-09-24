@@ -7,6 +7,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.dependencies.cache import get_cache_manager
+from tests.fakes.cache import FakeCacheManager
+
 # Делаем так, чтобы в тестах корректно импортировался пакет `app` и `config`
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
@@ -153,3 +156,17 @@ async def client(auth_app):
         base_url="https://test",
     ) as ac:
         yield ac
+
+
+@pytest.fixture
+def fake_cache_manager():
+    return FakeCacheManager()
+
+
+@pytest.fixture
+def override_cache_manager(app, fake_cache_manager):
+    app.dependency_overrides[get_cache_manager] = lambda: fake_cache_manager
+
+    yield fake_cache_manager
+
+    app.dependency_overrides.pop(get_cache_manager, None)

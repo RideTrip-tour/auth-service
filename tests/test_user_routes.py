@@ -514,6 +514,7 @@ async def test_reset_password_bad_pass(
 @pytest.mark.asyncio
 async def test_reset_password_bad_email(
     client,
+    override_cache_manager,
 ):
     """Проверка валидации email при сбросе пароля."""
     response = await client.post(
