@@ -1,9 +1,9 @@
 import logging
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
 # Обеспечиваем импорт пакета app при запуске тестов
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

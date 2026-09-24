@@ -3,7 +3,6 @@ import logging.config
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
