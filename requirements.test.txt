@@ -18,7 +18,7 @@ annotated-types==0.7.0
     # via
     #   -r requirements.txt
     #   pydantic
-anyio==4.11.0
+anyio==4.14.2
     # via
     #   -r requirements.txt
     #   httpx
@@ -270,9 +270,7 @@ shellingham==1.5.4
     #   -r requirements.txt
     #   typer
 sniffio==1.3.1
-    # via
-    #   -r requirements.txt
-    #   anyio
+    # via -r requirements.txt
 sortedcontainers==2.4.0
     # via
     #   -r requirements.txt
