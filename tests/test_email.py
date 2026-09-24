@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -94,3 +95,26 @@ async def test_send_email_sends_with_valid_config(monkeypatch):
     msg = sent_messages[0]
     assert msg.subject == "Subject"
     assert "user@example.com" in msg.recipients
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_does_not_send_email_when_cooldown_exists(
+    client,
+    override_cache_manager,
+):
+    email = "test@example.com"
+    cache_key = f"auth:service:forgot-password:cooldown:{email}"
+
+    override_cache_manager.set(cache_key)
+
+    with patch(
+        "app.services.users.send_email",
+        new_callable=AsyncMock,
+    ) as mock_send_email:
+        response = await client.post(
+            "/api/auth/forgot-password",
+            json={"email": email},
+        )
+
+    assert response.status_code == 202
+    mock_send_email.assert_not_awaited()
