@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.middleware.login_form import limit_login_form_body
+from app.routes.admin import admin_routes
 from app.routes.token import token_router
 from app.schemas.users import (
     UserBeforeVerify,
@@ -85,6 +86,8 @@ app.include_router(
     prefix="/api/users",
     tags=["users"],
 )
+
+app.include_router(admin_routes, prefix="/api/admin/users", tags=["admin"])
 
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])
 

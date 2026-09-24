@@ -45,6 +45,10 @@ class UserUpdateEmail(schemas.CreateUpdateDictModel, PasswordValidator, EmailVal
         return self
 
 
+class UserUpdate(schemas.BaseUserUpdate):
+    pass
+
+
 class UserBeforeVerify(UserRead):
     is_verified: bool = True
 
