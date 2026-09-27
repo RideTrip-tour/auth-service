@@ -126,6 +126,7 @@ def get_verify_router(
     ):
         try:
             user = await user_manager.verify(token, request)
+            user_manager.on_after_request_verify(user, token, request)
             return user_schema.model_validate(user)
         except (exceptions.InvalidVerifyToken, exceptions.UserNotExists) as exc:
             logger.exception(ErrorCode.VERIFY_USER_BAD_TOKEN)

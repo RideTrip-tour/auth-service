@@ -270,6 +270,28 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             details={"token_length": len(token)},
         )
 
+    async def on_after_verify(
+        self, user: models.UP, request: Request | None = None
+    ) -> None:
+        link = f"{settings.origin.rstrip('/')}/profile/"
+        await send_email(
+            user.email,
+            "Поздравляем, Вы успешно зарегистрированы",
+            f"""
+            <html>
+                <body>
+                    <p>Доброго времени суток!</p>
+
+                    <p>
+                        Поздравляем, Вы успешно зарегистрированы
+                        Заполните свой профиль 
+                        <a href="{link}">по ссылке</a>.
+                    </p>
+                </body>
+            </html>
+            """,
+        )
+
     async def on_before_register(self, user_dict: dict, request: Request | None = None):
         """
         Отправляем cсылку для подтверждения регистрации пользователю.
