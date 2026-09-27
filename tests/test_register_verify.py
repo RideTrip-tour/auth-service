@@ -183,6 +183,12 @@ async def test_verify_success(client, mock_user_db, mocker):
     mock_user_db.create_result = created_user
     mock_user_db.create_called = False
 
+    mock_login_user = mocker.patch(
+        "app.services.users.AuthenticationBackendCustom.login",
+        new_callable=AsyncMock,
+    )
+    mock_login_user.return_value = created_user
+
     response = await client.post("/api/auth/verify", json={"token": token})
     mock_create_profile.assert_awaited_once_with(created_user)
     assert response.status_code == 200
@@ -196,6 +202,7 @@ async def test_verify_success(client, mock_user_db, mocker):
     assert mock_user_db.create_call_data.get("is_verified") is True
     assert "aud" not in mock_user_db.create_call_data
     assert "type" not in mock_user_db.create_call_data
+    assert mock_login_user.assert_called_once
 
 
 @pytest.mark.asyncio

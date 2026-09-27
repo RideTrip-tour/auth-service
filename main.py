@@ -25,7 +25,7 @@ from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger("auth_service")
+logger = logging.getLogger("users.main")
 
 
 @asynccontextmanager
@@ -71,7 +71,7 @@ app.include_router(
     tags=["auth"],
 )
 app.include_router(
-    fastapi_users.get_verify_router(UserBeforeVerify),
+    fastapi_users.get_verify_router(auth_backend, UserBeforeVerify),
     prefix=f"/api/{settings.app_name.split('-')[0]}",
     tags=["auth"],
 )

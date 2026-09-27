@@ -22,6 +22,8 @@ class AuditEventType:
     REGISTERED = "registered"
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
     VERIFICATION_REQUESTED = "verification_requested"
+    VERIFY_SUCCES = "verify_success"
+    VERIFY_FAILED = "verify_failed"
 
 
 def _extract_request_details(request: Request | None) -> dict[str, Any]:

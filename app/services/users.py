@@ -35,6 +35,7 @@ from app.routes.auth import get_auth_router
 from app.routes.register import get_register_router, get_verify_router
 from app.routes.reset_pass import get_reset_password_router
 from app.routes.users import get_users_router
+from app.schemas.reset_pass import VerifyOperation, VerifyResult
 from app.services.email import send_email
 from app.services.gateway import GatewayClient
 from app.services.jwt import get_strategy
@@ -78,13 +79,17 @@ class FastAPIUsersCustom[UP: models.UserProtocol, ID](FastAPIUsers[UP, ID]):
             self.get_user_manager, user_schema, user_create_schema
         )
 
-    def get_verify_router(self, user_schema: type[schemas.U]) -> APIRouter:
+    def get_verify_router(
+        self,
+        backend: AuthenticationBackend[models.UP, models.ID],
+        user_schema: type[schemas.U],
+    ) -> APIRouter:
         """
         Return a router with e-mail verification routes.
 
         :param user_schema: Pydantic schema of a public user.
         """
-        return get_verify_router(self.get_user_manager, user_schema)
+        return get_verify_router(self.get_user_manager, backend, user_schema)
 
     def get_auth_router(
         self,
@@ -374,7 +379,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         token_db = SQLAlchemyEmailChangeRequestDatabase(session)
         await token_db.delete_by_token(token)
 
-    async def verify(self, token: str, request: Request | None = None) -> models.UP:
+    async def verify(self, token: str, request: Request | None = None) -> VerifyResult:
         """Проверяем токен на валидность и создаем пользователя"""
         decoded_token = token
         try:
@@ -401,7 +406,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         if aud != self.verification_token_audience:
             raise exceptions.InvalidVerifyToken()
 
-        if type_operation == "register":
+        if type_operation == VerifyOperation.REGISTER:
             created_user = await self.register_user(data)
             try:
                 await self.gateway_client.create_profile(created_user)
@@ -411,18 +416,27 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                     "Выполняется удаление пользователя.",
                     created_user.id,
                 )
+                await audit_service.log_event(
+                    audit_service.AuditEventType.VERIFY_SUCCES,
+                    details={"verify_fail": getattr(created_user, "email", None)},
+                )
                 await self.user_db.delete(created_user)
                 raise HTTPException(
                     status_code=400, detail="Fail create profile"
                 ) from exc
-            return created_user
+            await audit_service.log_event(
+                audit_service.AuditEventType.VERIFY_SUCCES,
+                user_id=created_user.id,
+                details={"verify_account": getattr(created_user, "id", None)},
+            )
+            return VerifyResult(user=created_user, operation=VerifyOperation.REGISTER)
 
-        if type_operation == "change_email":
+        if type_operation == VerifyOperation.CHANGE_EMAIL:
             data["token"] = token
             await self._validate_change_email_request(token, data)
-            response = await self.change_email(data)
+            user = await self.change_email(data)
             await self.on_after_change_email(
-                response,
+                user,
                 current_email=data["current_email"],
                 new_email=data["new_email"],
                 request=request,
@@ -438,7 +452,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                     "new_email": data.get("new_email"),
                 },
             )
-            return response
+            return VerifyResult(user=user, operation=VerifyOperation.CHANGE_EMAIL)
         raise exceptions.InvalidVerifyToken()
 
     async def register_user(self, data: dict) -> models.UP:
