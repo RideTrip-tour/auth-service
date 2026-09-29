@@ -61,7 +61,7 @@ click==8.3.1
     #   rich-toolkit
     #   typer
     #   uvicorn
-cryptography==48.0.1
+cryptography==50.0.0
     # via
     #   -r requirements.txt
     #   pyjwt
