@@ -6,7 +6,7 @@ import httpx
 from app.services.jwt import get_strategy
 from config import settings
 
-logger = logging.getLogger("servises.gateway")
+logger = logging.getLogger("users.servises.gateway")
 
 
 class GatewayClient:
@@ -77,11 +77,10 @@ class GatewayClient:
         except Exception:
             elapsed = time.monotonic() - started_at
 
-            logger.info(
-                "Gateway request completed: %s: %s -> %s in %s s",
+            logger.exception(
+                "Gateway request failed: %s: %s in %s s",
                 method,
                 path,
-                response.status_code,
                 elapsed,
             )
             raise

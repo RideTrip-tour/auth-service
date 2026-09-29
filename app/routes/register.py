@@ -2,9 +2,12 @@ import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
+from fastapi_users.authentication import AuthenticationBackend, Strategy
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.password import PasswordHelper
 from fastapi_users.router.common import ErrorCode, ErrorModel
+
+from app.schemas.reset_pass import VerifyOperation
 
 password_helper = PasswordHelper()
 logger = logging.getLogger("users.register")
@@ -88,6 +91,7 @@ def get_register_router(
 
 def get_verify_router(
     get_user_manager: UserManagerDependency[models.UP, models.ID],
+    backend: AuthenticationBackend[models.UP, models.ID],
     user_schema: type[schemas.U],
 ):
     router = APIRouter()
@@ -123,10 +127,14 @@ def get_verify_router(
         request: Request,
         token: str = Body(..., embed=True),
         user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
+        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
     ):
         try:
-            user = await user_manager.verify(token, request)
-            return user_schema.model_validate(user)
+            result = await user_manager.verify(token, request)
+            if result.operation == VerifyOperation.REGISTER:
+                return await backend.login(strategy, result.user)
+
+            return user_schema.model_validate(result.user)
         except (exceptions.InvalidVerifyToken, exceptions.UserNotExists) as exc:
             logger.exception(ErrorCode.VERIFY_USER_BAD_TOKEN)
             raise HTTPException(
