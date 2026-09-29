@@ -81,7 +81,7 @@ def get_register_router(
         user_dict["hashed_password"] = password_helper.hash(password)
 
         await user_manager.on_before_register(user_dict, request)
-        return Response(status_code=204)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router
 
