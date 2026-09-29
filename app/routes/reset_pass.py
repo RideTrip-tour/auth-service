@@ -6,9 +6,9 @@ from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 from pyrate_limiter import Duration, Limiter, Rate
 
-from app.schemas.users import StatusResponse
 from app.dependencies.cache import get_cache_manager
 from app.schemas.reset_pass import EmailForgotPass, ResetPass
+from app.schemas.users import StatusResponse
 from app.services.cache import CacheManager
 
 RESET_PASSWORD_RESPONSES: OpenAPIResponseType = {
@@ -71,19 +71,19 @@ def get_reset_password_router(
         )
 
         if not allowed:
-            return StatusResponse(status='success')
+            return StatusResponse(status="success")
 
         try:
             user = await user_manager.get_by_email(email_forgot_pass.email)
         except exceptions.UserNotExists:
-            return StatusResponse(status='success')
+            return StatusResponse(status="success")
 
         try:
             await user_manager.forgot_password(user, request)
         except exceptions.UserInactive:
             pass
 
-        return StatusResponse(status='success')
+        return StatusResponse(status="success")
 
     @router.post(
         "/reset-password",
