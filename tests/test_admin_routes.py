@@ -104,7 +104,7 @@ async def test_update_user(client, app, override_admin):
 
     response = await client.patch("/api/admin/users/1", json={"is_active": False})
     assert response.status_code == 200
-    assert response.json()["is_active"] == False
+    assert not response.json()["is_active"]
 
 
 @pytest.mark.asyncio
