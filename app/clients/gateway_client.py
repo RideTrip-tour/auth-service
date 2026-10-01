@@ -6,7 +6,7 @@ import httpx
 from app.services.jwt import get_strategy
 from config import settings
 
-logger = logging.getLogger("users.servises.gateway")
+logger = logging.getLogger("users.clients.gateway_client")
 
 
 class GatewayClient:

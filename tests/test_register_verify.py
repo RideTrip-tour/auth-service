@@ -160,7 +160,7 @@ async def test_verify_success(client, mock_user_db, mocker):
     """Успешное подтверждение: валидный токен → пользователь создаётся, возвращается UserRead."""
 
     mock_create_profile = mocker.patch(
-        "app.services.gateway.GatewayClient.create_profile",
+        "app.clients.gateway_client.GatewayClient.create_profile",
         new_callable=AsyncMock,
     )
 
@@ -244,7 +244,10 @@ async def test_verify_expired_token(client, mock_user_db):
 
 @pytest.mark.asyncio
 async def test_verify_user_already_exists(client, mock_user_db):
-    """Если пользователь с email уже есть, verify возвращает 400 VERIFY_USER_ALREADY_VERIFIED."""
+    """
+    Если пользователь с email уже есть,
+    verify возвращает 400 VERIFY_USER_ALREADY_VERIFIED.
+    """
     email = "existing@example.com"
     token = _make_verify_token(email, "hash")
     existing_user = type("User", (), {"id": 1, "email": email})()

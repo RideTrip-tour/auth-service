@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.clients.gateway_client import GatewayClient
 from app.middleware.login_form import limit_login_form_body
 from app.routes.admin import admin_routes
 from app.routes.token import token_router
@@ -18,7 +19,6 @@ from app.schemas.users import (
     UserUpdateEmail,
     UserUpdatePassword,
 )
-from app.services.gateway import GatewayClient
 from app.services.users import auth_backend, fastapi_users
 from app.utils.handler import remove_validation_input
 from app.utils.logging import LOGGING_CONFIG
