@@ -20,12 +20,12 @@ from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import update as sqlalchemy_update
 
 import app.services.audit as audit_service
+from app.clients.gateway_client import GatewayClient
 from app.db.database import get_user_db
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
 from app.db.models import User
 from app.schemas.reset_pass import VerifyOperation, VerifyResult
 from app.services.email import send_email
-from app.clients.gateway_client import GatewayClient
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -283,7 +283,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         token_db = SQLAlchemyEmailChangeRequestDatabase(session)
         await token_db.delete_by_token(token)
 
-    async def verify( # type: ignore[override]
+    async def verify(  # type: ignore[override]
         self, token: str, request: Request | None = None
     ) -> VerifyResult[User]:
         """Проверяем токен на валидность и создаем пользователя"""
