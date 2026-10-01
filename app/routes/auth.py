@@ -1,19 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi_users import models
 from fastapi_users.authentication import AuthenticationBackend, Authenticator, Strategy
 from fastapi_users.manager import BaseUserManager, UserManagerDependency
 from fastapi_users.openapi import OpenAPIResponseType
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
 import app.services.audit as audit_service
+from app.db.models import User
 from config import settings
 
 
 def get_auth_router(
-    backend: AuthenticationBackend[models.UP, models.ID],
-    get_user_manager: UserManagerDependency[models.UP, models.ID],
-    authenticator: Authenticator[models.UP, models.ID],
+    backend: AuthenticationBackend[User, int],
+    get_user_manager: UserManagerDependency[User, int],
+    authenticator: Authenticator[User, int],
     requires_verification: bool = False,
 ) -> APIRouter:
     """Return an auth router with logout bound to the current refresh token."""
@@ -50,8 +50,8 @@ def get_auth_router(
     async def login(
         request: Request,
         credentials: OAuth2PasswordRequestForm = Depends(),
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
-        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
+        user_manager: BaseUserManager[User, int] = Depends(get_user_manager),
+        strategy: Strategy[User, int] = Depends(backend.get_strategy),
     ):
         user = await user_manager.authenticate(credentials)
 
@@ -96,8 +96,8 @@ def get_auth_router(
     )
     async def logout(
         request: Request,
-        user_token: tuple[models.UP, str] = Depends(get_current_user_token),
-        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
+        user_token: tuple[User, str] = Depends(get_current_user_token),
+        strategy: Strategy[User, int] = Depends(backend.get_strategy),
     ):
         user, _access_token = user_token
         refresh_token = request.cookies.get(settings.refresh_token_name)

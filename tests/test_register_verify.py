@@ -31,7 +31,7 @@ async def test_register_success(client, mock_user_db):
     """Успешный запрос регистрации: 204, письмо содержит токен подтверждения."""
     mock_user_db.get_by_email_result = None
     with patch(
-        "app.services.users.send_email", new_callable=AsyncMock
+        "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
         response = await client.post(
             "/api/auth/register",
@@ -72,7 +72,7 @@ async def test_register_lowercases_email(client, mock_user_db):
     """Email при регистрации приводится к нижнему регистру до lookup и токена."""
     mock_user_db.get_by_email_result = None
     with patch(
-        "app.services.users.send_email", new_callable=AsyncMock
+        "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
         response = await client.post(
             "/api/auth/register",
@@ -298,7 +298,7 @@ async def test_verify_change_email_success(client, mock_user_db):
     )
 
     with patch(
-        "app.services.users.send_email", new_callable=AsyncMock
+        "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
         response = await client.post("/api/auth/verify", json={"token": token})
 

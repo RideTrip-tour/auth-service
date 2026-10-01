@@ -1,25 +1,29 @@
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_users import exceptions, models, schemas
-from fastapi_users.authentication import AuthenticationBackend, Authenticator, Strategy
-from fastapi_users.manager import BaseUserManager, UserManagerDependency
+from fastapi_users.authentication import AuthenticationBackend, Authenticator
+from fastapi_users.manager import UserManagerDependency
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
 import app.services.audit as audit_service
-from app.schemas.users import StatusResponse
+from app.db.models import User
+from app.schemas.users import StatusResponse, UserUpdateEmail, UserUpdatePassword
 from app.services.email import send_email
+from app.services.jwt import JWTStrategyCustom
+from app.services.user_manager import UserManagerDep
 from config import settings
 
 logger = logging.getLogger("users.routes")
 
 
 def get_users_router(
-    backend: AuthenticationBackend[models.UP, models.ID],
+    backend: AuthenticationBackend[User, int],
     get_user_manager: UserManagerDependency[models.UP, models.ID],
     user_schema: type[schemas.U],
-    user_update_pass_schema: type[schemas.CreateUpdateDictModel],
-    user_update_email_schema: type[schemas.CreateUpdateDictModel],
+    user_update_pass_schema: type[UserUpdatePassword],
+    user_update_email_schema: type[UserUpdateEmail],
     authenticator: Authenticator[models.UP, models.ID],
     requires_verification: bool = False,
 ) -> APIRouter:
@@ -32,8 +36,8 @@ def get_users_router(
 
     async def get_user_or_404(
         id: str,
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
-    ) -> models.UP:
+        user_manager: UserManagerDep,
+    ) -> User:
         try:
             parsed_id = user_manager.parse_id(id)
             return await user_manager.get(parsed_id)
@@ -51,7 +55,7 @@ def get_users_router(
         },
     )
     async def me(
-        user: models.UP = Depends(get_current_active_user),
+        user: Annotated[models.UP, Depends(get_current_active_user)],
     ):
         return user_schema.model_validate(user)
 
@@ -87,10 +91,10 @@ def get_users_router(
     )
     async def change_password(
         request: Request,
-        user_update_pass_schema: user_update_pass_schema,  # type: ignore
-        user: models.UP = Depends(get_current_active_user),
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
-        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
+        user_update_pass_schema: UserUpdatePassword,
+        user: Annotated[User, Depends(get_current_active_user)],
+        user_manager: UserManagerDep,
+        strategy: Annotated[JWTStrategyCustom, Depends(backend.get_strategy)],
     ):
         updated_user = await user_manager.change_password(
             user,
@@ -161,9 +165,9 @@ def get_users_router(
     )
     async def request_change_email(
         request: Request,
-        user_update_email_schema: user_update_email_schema,  # type: ignore
-        user: models.UP = Depends(get_current_active_user),
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
+        user_update_email_schema: UserUpdateEmail,
+        user: Annotated[models.UP, Depends(get_current_active_user)],
+        user_manager: UserManagerDep,
     ):
         valid_password, _ = user_manager.password_helper.verify_and_update(
             user_update_email_schema.password,

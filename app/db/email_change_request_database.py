@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import EmailChangeRequest
@@ -52,9 +54,12 @@ class SQLAlchemyEmailChangeRequestDatabase:
         await self.session.refresh(request)
         return request
 
-    async def delete_by_token(self, token: str) -> int | None:
-        result = await self.session.execute(
-            delete(self.token_table).where(self.token_table.token == token)
+    async def delete_by_token(self, token: str) -> int:
+        result = cast(
+            CursorResult,
+            await self.session.execute(
+                delete(self.token_table).where(self.token_table.token == token)
+            ),
         )
         await self.session.commit()
         return result.rowcount

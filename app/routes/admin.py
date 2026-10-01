@@ -1,14 +1,17 @@
 import logging
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_users import exceptions
 from fastapi_users.manager import BaseUserManager
 from sqlalchemy import select
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.db.database import get_async_session
 from app.db.models import User
 from app.schemas.users import UserCreate, UserRead, UserUpdate
-from app.services.users import fastapi_users, get_user_manager
+from app.services.user_manager import get_user_manager
+from app.services.users import fastapi_users
 
 logger = logging.getLogger("admin.routes")
 
@@ -89,8 +92,7 @@ async def get_user(
     if id is not None:
         query = query.filter(User.id == id)
     if email is not None:
-        query = query.filter(User.email == email)
-
+        query = query.filter(cast(InstrumentedAttribute[str], User.email) == email)
     result = await session.execute(query)
     users = result.scalars().all()
     return users

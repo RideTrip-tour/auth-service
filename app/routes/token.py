@@ -81,7 +81,6 @@ async def refresh_token(
 
         await refresh_token_db.delete(db_token)
         new_refresh_token = await refresh_token_db.create(db_token.user_id)
-
     access_token = await get_strategy().write_token(db_token.user)
     await audit_service.log_event(
         audit_service.AuditEventType.SESSION_ROTATED,

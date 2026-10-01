@@ -10,6 +10,7 @@ from fastapi_users.authentication import (
 from fastapi_users.jwt import generate_jwt
 
 from app.db.database import AsyncSessionLocal
+from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from config import settings
 
@@ -19,7 +20,7 @@ logger = logging.getLogger("jwt.servises")
 SECRET = settings.jwt_secret
 
 
-class JWTStrategyCustom(JWTStrategy):
+class JWTStrategyCustom(JWTStrategy[User, int]):
     """Переопределяет payload JWT"""
 
     async def write_token(self, user: models.UP) -> str:
@@ -47,9 +48,9 @@ class JWTStrategyCustom(JWTStrategy):
                     await token_db.delete_by_user_id(user.id)
 
 
-def get_strategy() -> Strategy[models.UP, models.ID]:
+def get_strategy() -> Strategy[User, int]:
     return JWTStrategyCustom(
         secret=SECRET,
         lifetime_seconds=settings.access_token_expire_sec,
-        token_audience=settings.gateway_name,
+        token_audience=[settings.gateway_name],
     )

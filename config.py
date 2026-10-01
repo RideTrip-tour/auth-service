@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     mail_server: str = "smtp.gmail.com"
     mail_port: int = 587
     mail_username: str = ""
-    mail_password: str = ""
+    mail_password: SecretStr = SecretStr("")
     mail_from: str = ""
     mail_from_name: str = "Trip Constructor"
     mail_starttls: bool = True

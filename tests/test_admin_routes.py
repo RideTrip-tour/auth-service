@@ -7,7 +7,7 @@ from fastapi_users import exceptions
 from app.db.database import get_async_session
 from app.db.models import User
 from app.routes.admin import admin_routes
-from app.services.users import get_user_manager
+from app.services.user_manager import get_user_manager
 
 
 @pytest.fixture
