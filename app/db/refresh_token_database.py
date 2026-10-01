@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from fastapi import Depends
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -54,14 +56,20 @@ class SQLAlchemyRefreshTokenDatabase:
         await self.session.delete(refresh_token)
 
     async def delete_by_user_id(self, user_id: int) -> int | None:
-        result = await self.session.execute(
-            delete(self.token_table).where(self.token_table.user_id == user_id)
+        result = cast(
+            CursorResult,
+            await self.session.execute(
+                delete(self.token_table).where(self.token_table.user_id == user_id)
+            ),
         )
         return result.rowcount
 
     async def delete_by_token(self, token: str) -> int | None:
-        result = await self.session.execute(
-            delete(self.token_table).where(self.token_table.token == token)
+        result = cast(
+            CursorResult,
+            await self.session.execute(
+                delete(self.token_table).where(self.token_table.token == token)
+            ),
         )
         return result.rowcount
 

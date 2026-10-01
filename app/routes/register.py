@@ -1,13 +1,17 @@
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.authentication import AuthenticationBackend, Strategy
-from fastapi_users.manager import BaseUserManager, UserManagerDependency
+from fastapi_users.manager import UserManagerDependency
 from fastapi_users.password import PasswordHelper
 from fastapi_users.router.common import ErrorCode, ErrorModel
 
+from app.db.models import User
 from app.schemas.reset_pass import VerifyOperation
+from app.schemas.users import UserCreate
+from app.services.user_manager import UserManagerDep
 
 password_helper = PasswordHelper()
 logger = logging.getLogger("users.register")
@@ -55,8 +59,8 @@ def get_register_router(
     )
     async def register(
         request: Request,
-        user_create: user_create_schema,  # type: ignore
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
+        user_create: UserCreate,
+        user_manager: UserManagerDep,
     ):
         """
         Не регирируем пользователя сразу,
@@ -91,7 +95,7 @@ def get_register_router(
 
 def get_verify_router(
     get_user_manager: UserManagerDependency[models.UP, models.ID],
-    backend: AuthenticationBackend[models.UP, models.ID],
+    backend: AuthenticationBackend[User, int],
     user_schema: type[schemas.U],
 ):
     router = APIRouter()
@@ -125,9 +129,9 @@ def get_verify_router(
     )
     async def verify(
         request: Request,
-        token: str = Body(..., embed=True),
-        user_manager: BaseUserManager[models.UP, models.ID] = Depends(get_user_manager),
-        strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
+        token: Annotated[str, Body(..., embed=True)],
+        user_manager: UserManagerDep,
+        strategy: Annotated[Strategy[User, int], Depends(backend.get_strategy)],
     ):
         try:
             result = await user_manager.verify(token, request)

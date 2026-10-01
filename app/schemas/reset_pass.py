@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fastapi_users import models
 from pydantic import BaseModel
 
 from app.utils.validators import EmailValidator, PasswordValidator
@@ -22,6 +21,6 @@ class VerifyOperation(StrEnum):
 
 
 @dataclass
-class VerifyResult:
-    user: models.UP
+class VerifyResult[UP]:
+    user: UP
     operation: VerifyOperation

@@ -12,7 +12,7 @@ from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 
 from app.db.models import User
 from app.schemas.users import UserUpdateEmail, UserUpdatePassword
-from app.services.users import UserManager
+from app.services.user_manager import UserManager
 from config import settings
 from main import request_validation_exception_handler
 
@@ -45,7 +45,7 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     token = "reset.token.value"
 
     with patch(
-        "app.services.users.send_email", new_callable=AsyncMock
+        "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
         await manager.on_after_forgot_password(user, token, SimpleNamespace())
 
@@ -166,7 +166,7 @@ async def test_change_password_success(app, mock_audit_log):
             new=AsyncMock(return_value=user),
         ) as change_password_mock,
         patch(
-            "app.services.users.send_email", new_callable=AsyncMock
+            "app.services.user_manager.send_email", new_callable=AsyncMock
         ) as send_email_mock,
         patch(
             "app.services.users.auth_backend.logout", new_callable=AsyncMock
@@ -397,7 +397,7 @@ async def test_change_email_token_is_stored_and_replaces_previous_request():
     token_db = SimpleNamespace(replace_for_user=AsyncMock())
 
     with patch(
-        "app.services.users.SQLAlchemyEmailChangeRequestDatabase",
+        "app.services.user_manager.SQLAlchemyEmailChangeRequestDatabase",
         return_value=token_db,
     ) as token_db_class:
         token = await manager.create_change_email_verification_token(

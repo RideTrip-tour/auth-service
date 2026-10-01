@@ -12,7 +12,9 @@ class PasswordValidator:
     @model_validator(mode="after")
     def validate_password(self):
         for field in self.password_fields:
-            password: str = getattr(self, field, None)
+            password: str | None = getattr(self, field, None)
+            if password is None:
+                continue
             if any(ch.isspace() for ch in password):
                 raise ValueError("Пароль не должен содержать пробелы")
             if re.search(r"[А-Яа-яЁё]", password):
@@ -40,7 +42,9 @@ class EmailValidator:
     @model_validator(mode="after")
     def validate_email(self):
         for field in self.email_fields:
-            email: str = getattr(self, field, None)
+            email: str | None = getattr(self, field, None)
+            if email is None:
+                continue
             if not email.isascii():
                 raise ValueError("Email должен содержать только латинские символы")
             if any(ch.isspace() for ch in email):

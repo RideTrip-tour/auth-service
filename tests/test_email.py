@@ -108,7 +108,7 @@ async def test_forgot_password_does_not_send_email_when_cooldown_exists(
     override_cache_manager.set(cache_key)
 
     with patch(
-        "app.services.users.send_email",
+        "app.services.user_manager.send_email",
         new_callable=AsyncMock,
     ) as mock_send_email:
         response = await client.post(

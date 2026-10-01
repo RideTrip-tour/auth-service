@@ -12,10 +12,8 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from app.services.jwt import get_strategy
-from app.services.users import (
-    CookieTransportCustom,
-    UserManager,
-)
+from app.services.user_manager import UserManager
+from app.services.users import CookieTransportCustom
 from config import settings
 
 
@@ -166,7 +164,7 @@ async def test_login_sets_cookies(app, mock_user_db, transport, mock_audit_log):
 
     with (
         patch(
-            "app.services.users.UserManager.authenticate",
+            "app.services.user_manager.UserManager.authenticate",
             new=AsyncMock(return_value=existing),
         ),
         patch(
