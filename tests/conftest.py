@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.clients.gateway_client import GatewayClient
 from app.dependencies.cache import get_cache_manager
 from tests.fakes.cache import FakeCacheManager
 
@@ -161,6 +162,12 @@ async def client(auth_app):
 @pytest.fixture
 def fake_cache_manager():
     return FakeCacheManager()
+
+
+@pytest.fixture
+def gateway_client():
+    client = GatewayClient()
+    yield client
 
 
 @pytest.fixture
