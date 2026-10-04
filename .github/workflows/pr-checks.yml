@@ -31,4 +31,9 @@ jobs:
         run: ruff check --select F,E9 .
 
       - name: Tests
-        run: pytest -q
+        run: |
+          pytest \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=90
