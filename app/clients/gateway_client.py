@@ -6,7 +6,7 @@ import httpx
 from app.services.jwt import get_strategy
 from config import settings
 
-logger = logging.getLogger("users.clients.gateway_client")
+logger = logging.getLogger(__name__)
 
 
 class GatewayClient:
@@ -23,6 +23,7 @@ class GatewayClient:
                 base_url=settings.gateway_url,
                 timeout=10.0,
             )
+            logger.debug("Gateway client initialized")
 
     async def create_profile(self, user) -> None:
         user_context = await self._create_user_context(user)
@@ -65,6 +66,7 @@ class GatewayClient:
                 headers=self._get_headers(user_context),
                 json={},
             )
+            response.raise_for_status()
             elapsed = time.monotonic() - started_at
             logger.info(
                 "Gateway request completed: %s: %s -> %s in %s s",
@@ -73,7 +75,6 @@ class GatewayClient:
                 response.status_code,
                 elapsed,
             )
-            response.raise_for_status()
         except Exception:
             elapsed = time.monotonic() - started_at
 

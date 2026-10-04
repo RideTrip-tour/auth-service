@@ -116,6 +116,7 @@ uvicorn main:app --reload
 
 ## Тесты
 
+При запуске автоматически рассчитывается покрытие кода с выводом непокрытых строк.
 ```bash
-DEBUG=false python -m pytest -q
+DEBUG=false python -m pytest
 ```

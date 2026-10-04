@@ -6,11 +6,15 @@ from urllib.parse import parse_qs, urlparse
 
 import jwt
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
+from fastapi_users import exceptions
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
+from fastapi_users.router.common import ErrorCode
 
+import app.services.audit as audit_service
 from app.db.models import User
+from app.routes.reset_pass import EmailForgotPass, ResetPass
 from app.schemas.users import UserUpdateEmail, UserUpdatePassword
 from app.services.user_manager import UserManager
 from config import settings
@@ -43,7 +47,6 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
     )
     manager = UserManager(SimpleNamespace())
     token = "reset.token.value"
-
     with patch(
         "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
@@ -140,7 +143,7 @@ async def test_user_manager_change_password_returns_none_on_stale_hash():
 
 
 @pytest.mark.asyncio
-async def test_change_password_success(app, mock_audit_log):
+async def test_change_password_success(app, mock_audit_log, user_manager):
     """Смена пароля должна обновить пароль, разлогинить и отправить уведомление."""
     route = _get_route(app, "users:patch_pass_current_user")
     user = SimpleNamespace(
@@ -156,9 +159,7 @@ async def test_change_password_success(app, mock_audit_log):
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
-
     with (
         patch.object(
             user_manager,
@@ -172,6 +173,7 @@ async def test_change_password_success(app, mock_audit_log):
             "app.services.users.auth_backend.logout", new_callable=AsyncMock
         ) as logout_mock,
     ):
+        user_manager.user_db.get_result = user
         response = await route.endpoint(
             request=request,
             user_update_pass_schema=user_update,
@@ -204,7 +206,9 @@ async def test_change_password_success(app, mock_audit_log):
 
 
 @pytest.mark.asyncio
-async def test_change_password_rejects_bad_current_password(app, mock_audit_log):
+async def test_change_password_rejects_bad_current_password(
+    app, mock_audit_log, user_manager
+):
     """Неверный current_password должен вернуть 400."""
     route = _get_route(app, "users:patch_pass_current_user")
     user = SimpleNamespace(
@@ -220,7 +224,6 @@ async def test_change_password_rejects_bad_current_password(app, mock_audit_log)
         new_password="newpassword123",
     )
     request = SimpleNamespace(cookies={settings.refresh_token_name: "refresh-token"})
-    user_manager = UserManager(SimpleNamespace())
     strategy = SimpleNamespace(destroy_tokens_by_user=AsyncMock())
 
     with (
@@ -278,7 +281,6 @@ async def test_request_change_email_sends_verification_link(
         password="currentpassword123",
     )
     user_manager = UserManager(mock_user_db)
-
     with (
         patch.object(
             user_manager.password_helper,
@@ -446,9 +448,8 @@ async def test_request_validation_error_hides_input():
 
 @pytest.mark.asyncio
 async def test_request_change_email_rejects_wrong_current_email(
-    app, mock_user_db, mock_audit_log
+    app, mock_user_db, mock_audit_log, user_manager
 ):
-    """Если current_email не совпадает с почтой пользователя, запрос отклоняется."""
     route = _get_route(app, "users:patch_email_current_user")
     user = SimpleNamespace(
         id=7,
@@ -463,8 +464,6 @@ async def test_request_change_email_rejects_wrong_current_email(
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db)
-
     with (
         patch.object(
             user_manager.password_helper,
@@ -525,3 +524,234 @@ async def test_reset_password_bad_email(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_request_change_email_invalid_password(
+    mocker,
+    mock_audit_log,
+    user_manager,
+    app,
+):
+    request_change_email = next(
+        route.endpoint
+        for route in app.routes
+        if route.name == "users:patch_email_current_user"
+    )
+
+    user = SimpleNamespace(
+        id=42,
+        email="old@example.com",
+        hashed_password="hashed-password",
+    )
+
+    schema = SimpleNamespace(
+        password="wrong-password",
+        current_email="old@example.com",
+        new_email="new@example.com",
+    )
+
+    mocker.patch.object(
+        user_manager.password_helper,
+        "verify_and_update",
+        return_value=(False, None),
+    )
+
+    request = MagicMock()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await request_change_email(
+            request=request,
+            user_update_email_schema=schema,
+            user=user,
+            user_manager=user_manager,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc_info.value.detail == ErrorCode.LOGIN_BAD_CREDENTIALS
+
+    mock_audit_log.assert_awaited_once_with(
+        audit_service.AuditEventType.CHANGE_FAILED,
+        request=request,
+        user_id=42,
+        success=False,
+        reason="invalid_password",
+        details={
+            "change_type": "email",
+            "current_email": "old@example.com",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_returns_success_when_cooldown_active(
+    reset_router,
+):
+    route = _get_route(reset_router, "reset:forgot_password")
+
+    cache = SimpleNamespace(
+        acquire_cooldown=AsyncMock(return_value=False),
+    )
+    user_manager = SimpleNamespace(
+        get_by_email=AsyncMock(),
+        forgot_password=AsyncMock(),
+    )
+
+    response = await route.endpoint(
+        request=SimpleNamespace(),
+        email_forgot_pass=EmailForgotPass(email="user@example.com"),
+        user_manager=user_manager,
+        cache=cache,
+    )
+
+    assert response.status == "success"
+    cache.acquire_cooldown.assert_awaited_once_with(
+        "auth:service:forgot-password:cooldown:user@example.com",
+    )
+    user_manager.get_by_email.assert_not_awaited()
+    user_manager.forgot_password.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_returns_success_when_user_not_exists(
+    reset_router,
+):
+    route = _get_route(reset_router, "reset:forgot_password")
+
+    cache = SimpleNamespace(
+        acquire_cooldown=AsyncMock(return_value=True),
+    )
+    user_manager = SimpleNamespace(
+        get_by_email=AsyncMock(
+            side_effect=exceptions.UserNotExists(),
+        ),
+        forgot_password=AsyncMock(),
+    )
+
+    response = await route.endpoint(
+        request=SimpleNamespace(),
+        email_forgot_pass=EmailForgotPass(email="user@example.com"),
+        user_manager=user_manager,
+        cache=cache,
+    )
+
+    assert response.status == "success"
+    user_manager.get_by_email.assert_awaited_once_with("user@example.com")
+    user_manager.forgot_password.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_ignores_inactive_user(reset_router):
+    route = _get_route(reset_router, "reset:forgot_password")
+
+    user = SimpleNamespace(id=42)
+    request = SimpleNamespace()
+
+    cache = SimpleNamespace(
+        acquire_cooldown=AsyncMock(return_value=True),
+    )
+    user_manager = SimpleNamespace(
+        get_by_email=AsyncMock(return_value=user),
+        forgot_password=AsyncMock(
+            side_effect=exceptions.UserInactive(),
+        ),
+    )
+
+    response = await route.endpoint(
+        request=request,
+        email_forgot_pass=EmailForgotPass(email="user@example.com"),
+        user_manager=user_manager,
+        cache=cache,
+    )
+
+    assert response.status == "success"
+    user_manager.get_by_email.assert_awaited_once_with("user@example.com")
+    user_manager.forgot_password.assert_awaited_once_with(user, request)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exception",
+    [
+        exceptions.InvalidResetPasswordToken(),
+        exceptions.UserNotExists(),
+        exceptions.UserInactive(),
+    ],
+)
+async def test_reset_password_returns_bad_token(
+    reset_router,
+    exception,
+):
+    route = _get_route(reset_router, "reset:reset_password")
+
+    user_manager = SimpleNamespace(
+        reset_password=AsyncMock(side_effect=exception),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await route.endpoint(
+            request=SimpleNamespace(),
+            reset_pass_schema=ResetPass(
+                token="invalid-token",
+                password="valid-password",
+            ),
+            user_manager=user_manager,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == ErrorCode.RESET_PASSWORD_BAD_TOKEN
+
+
+@pytest.mark.asyncio
+async def test_reset_password_returns_invalid_password(reset_router):
+    route = _get_route(reset_router, "reset:reset_password")
+
+    user_manager = SimpleNamespace(
+        reset_password=AsyncMock(
+            side_effect=exceptions.InvalidPasswordException(
+                reason="Password is too weak",
+            ),
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await route.endpoint(
+            request=SimpleNamespace(),
+            reset_pass_schema=ResetPass(
+                token="valid-token",
+                password="bad-password",
+            ),
+            user_manager=user_manager,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == {
+        "code": ErrorCode.RESET_PASSWORD_INVALID_PASSWORD,
+        "reason": "Password is too weak",
+    }
+
+
+@pytest.mark.asyncio
+async def test_reset_password_success(reset_router):
+    route = _get_route(reset_router, "reset:reset_password")
+
+    request = SimpleNamespace()
+    user_manager = SimpleNamespace(
+        reset_password=AsyncMock(),
+    )
+
+    response = await route.endpoint(
+        request=request,
+        reset_pass_schema=ResetPass(
+            token="valid-token",
+            password="valid-password",
+        ),
+        user_manager=user_manager,
+    )
+
+    assert response is None
+    user_manager.reset_password.assert_awaited_once_with(
+        "valid-token",
+        "valid-password",
+        request,
+    )

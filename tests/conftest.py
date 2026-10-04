@@ -1,13 +1,18 @@
 import os
 import sys
 from collections.abc import AsyncGenerator, Generator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.clients.gateway_client import GatewayClient
+from app.db.models import User
+from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.dependencies.cache import get_cache_manager
+from app.routes.reset_pass import get_reset_password_router
 from tests.fakes.cache import FakeCacheManager
 
 # Делаем так, чтобы в тестах корректно импортировался пакет `app` и `config`
@@ -15,6 +20,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.services.user_manager import UserManager
 from config import settings
 
 
@@ -43,7 +49,7 @@ def reset_email_settings() -> Generator[None, None, None]:
         settings.mail_password = original["mail_password"]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_audit_log() -> Generator[AsyncMock, None, None]:
     """Пишем audit-события в mock, чтобы тесты не требовали БД."""
     with patch("app.services.audit.log_event", new_callable=AsyncMock) as audit_mock:
@@ -164,9 +170,34 @@ def fake_cache_manager():
 
 
 @pytest.fixture
+def gateway_client():
+    client = GatewayClient()
+    yield client
+
+
+@pytest.fixture
+def user_manager(mock_user_db):
+    mock_user_db.session = SimpleNamespace()
+    mock_user_db.user_table = User
+    return UserManager(mock_user_db)
+
+
+@pytest.fixture
 def override_cache_manager(app, fake_cache_manager):
     app.dependency_overrides[get_cache_manager] = lambda: fake_cache_manager
 
     yield fake_cache_manager
 
     app.dependency_overrides.pop(get_cache_manager, None)
+
+
+@pytest.fixture
+def reset_router():
+    return get_reset_password_router(lambda: None)
+
+
+@pytest.fixture
+def refresh_token_db():
+    session = AsyncMock()
+    session.add = MagicMock()
+    return SQLAlchemyRefreshTokenDatabase(session), session
