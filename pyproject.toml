@@ -11,6 +11,7 @@ extend-immutable-calls = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+addopts = "--cov=app --cov-report=term-missing"
 
 [tool.mypy]
 check_untyped_defs = true

@@ -3,11 +3,13 @@
 import os
 import re
 import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from urllib.parse import unquote
 
 import jwt
 import pytest
+from fastapi_users import exceptions
 from fastapi_users.jwt import generate_jwt
 from fastapi_users.manager import VERIFY_USER_TOKEN_AUDIENCE
 
@@ -206,6 +208,47 @@ async def test_verify_success(client, mock_user_db, mocker):
 
 
 @pytest.mark.asyncio
+async def test_verify_deletes_user_when_profile_creation_fails(
+    client,
+    mock_user_db,
+    mocker,
+):
+    email = "verified@example.com"
+    token = _make_verify_token(email, "hashed_password_value")
+
+    created_user = type(
+        "User",
+        (),
+        {
+            "id": 42,
+            "email": email,
+            "is_active": True,
+            "is_superuser": False,
+            "is_verified": True,
+        },
+    )()
+
+    mock_user_db.get_by_email_result = None
+    mock_user_db.create_result = created_user
+    mock_user_db.delete = AsyncMock()
+
+    mocker.patch(
+        "app.services.user_manager.GatewayClient.create_profile",
+        new_callable=AsyncMock,
+        side_effect=Exception("Gateway error"),
+    )
+
+    response = await client.post(
+        "/api/auth/verify",
+        json={"token": token},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Fail create profile"
+    mock_user_db.delete.assert_awaited_once_with(created_user)
+
+
+@pytest.mark.asyncio
 async def test_verify_bad_token(client, mock_user_db):
     """Невалидный токен → 400 VERIFY_USER_BAD_TOKEN."""
     response = await client.post(
@@ -330,3 +373,51 @@ async def test_verify_change_email_success(client, mock_user_db):
     assert "Предыдущий адрес" not in new_email_call.args[2]
     assert "Сменить пароль" not in new_email_call.args[2]
     assert "token=" not in new_email_call.args[2]
+
+
+@pytest.mark.asyncio
+async def test_validate_change_email_request_rejects_mismatched_data(
+    mocker, user_manager
+):
+    request = type(
+        "ChangeEmailRequest",
+        (),
+        {
+            "user_id": 7,
+            "current_email": "current@example.com",
+            "new_email": "new@example.com",
+        },
+    )()
+    mock_token_db = mocker.patch(
+        "app.services.user_manager.SQLAlchemyEmailChangeRequestDatabase",
+    )
+    mock_token_db.return_value.get_valid = AsyncMock(return_value=request)
+    with pytest.raises(exceptions.InvalidVerifyToken):
+        await user_manager._validate_change_email_request(
+            "token",
+            {
+                "sub": "999",
+                "current_email": "current@example.com",
+                "new_email": "new@example.com",
+            },
+        )
+    mock_token_db.return_value.get_valid.assert_awaited_once_with("token")
+
+
+@pytest.mark.asyncio
+async def test_change_email_token_without_session(
+    mocker,
+    user_manager,
+):
+    mock_token_db = mocker.patch(
+        "app.services.user_manager.SQLAlchemyEmailChangeRequestDatabase",
+    )
+
+    user_manager.user_db.session = None
+    token = await user_manager.create_change_email_verification_token(
+        user=SimpleNamespace(id=7),
+        current_email="current@example.com",
+        new_email="new@example.com",
+    )
+    assert token
+    mock_token_db.assert_not_called()
