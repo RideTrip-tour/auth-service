@@ -219,6 +219,28 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_dict["email"],
         )
 
+    async def on_after_verify(
+        self, user: models.UP, request: Request | None = None
+    ) -> None:
+        link = f"{settings.origin.rstrip('/')}/profile"
+        await send_email(
+            user.email,
+            "Поздравляем, Вы успешно зарегистрированы",
+            f"""
+            <html>
+                <body>
+                    <p>Доброго времени суток!</p>
+
+                    <p>
+                        Поздравляем, Вы успешно зарегистрированы
+                        Заполните свой профиль 
+                        <a href="{link}">по ссылке</a>.
+                    </p>
+                </body>
+            </html>
+            """,
+        )
+    
     async def create_change_email_verification_token(
         self,
         *,

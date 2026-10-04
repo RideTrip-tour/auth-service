@@ -108,6 +108,7 @@ def get_reset_password_router(
             await user_manager.reset_password(
                 reset_pass_schema.token, reset_pass_schema.password, request
             )
+            return StatusResponse(status="success")
         except (
             exceptions.InvalidResetPasswordToken,
             exceptions.UserNotExists,
