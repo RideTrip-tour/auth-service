@@ -32,7 +32,7 @@ jobs:
 
       - name: Tests
         run: pytest \
-          --cov=my_project \
+          --cov=app \
           --cov-report=term-missing \
           --cov-report=xml \
           --cov-fail-under=90
