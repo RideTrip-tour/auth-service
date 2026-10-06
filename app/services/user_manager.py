@@ -219,6 +219,37 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_dict["email"],
         )
 
+    async def on_after_verify(
+        self, user: models.UP, request: Request | None = None
+    ) -> None:
+        link = f"{settings.origin.rstrip('/')}/profile"
+        await send_email(
+            user.email,
+            "Добро пожаловать в «3шагадо» 🏔️",
+            f"""
+            <html>
+                <body>
+                    <p>Привет!</p>
+
+                    <p>
+                        Регистрация подтверждена — теперь вы с нами.
+
+                        Собрать поездку, пройти тест на уровень, сохранить варианты в избранное — всё это уже можно сделать на сайте.
+
+                        Сейчас в «3шагадо» только горнолыжные курорты. Но мы уже работаем над новыми горизонтами.
+
+                        Переходите по <a href="{link}">по ссылке</a> и планируйте в удовольствие! 🏔️
+
+
+                        
+
+                        Команда «3шагадо»
+                    </p>
+                </body>
+            </html>
+            """,
+        )
+
     async def create_change_email_verification_token(
         self,
         *,
