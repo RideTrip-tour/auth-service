@@ -44,7 +44,7 @@ async def test_register_success(client, mock_user_db):
     send_email_mock.assert_called_once()
     recipient, subject, body = send_email_mock.call_args.args
     assert recipient == "newuser@example.com"
-    assert subject == "Подтверждение регистрации"
+    assert subject == "Подтвердите email - и поехали 🏔️"
 
     match = re.search(r'verify_token=([^"\s&]+)', body)
     assert match is not None
