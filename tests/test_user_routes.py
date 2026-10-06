@@ -749,7 +749,7 @@ async def test_reset_password_success(reset_router):
         user_manager=user_manager,
     )
 
-    assert response is None
+    assert response.status == "success"
     user_manager.reset_password.assert_awaited_once_with(
         "valid-token",
         "valid-password",
