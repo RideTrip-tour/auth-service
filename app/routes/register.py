@@ -136,7 +136,7 @@ def get_verify_router(
         try:
             result = await user_manager.verify(token, request)
             if result.operation == VerifyOperation.REGISTER:
-                user_manager.on_after_verify(result.user, token, request)
+                user_manager.on_after_verify(result.user, request)
                 return await backend.login(strategy, result.user)
 
             return user_schema.model_validate(result.user)
