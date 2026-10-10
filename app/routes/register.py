@@ -35,12 +35,6 @@ def get_register_router(
                 "content": {
                     "application/json": {
                         "examples": {
-                            ErrorCode.REGISTER_USER_ALREADY_EXISTS: {
-                                "summary": "A user with this email already exists.",
-                                "value": {
-                                    "detail": ErrorCode.REGISTER_USER_ALREADY_EXISTS
-                                },
-                            },
                             ErrorCode.REGISTER_INVALID_PASSWORD: {
                                 "summary": "Password validation failed.",
                                 "value": {
@@ -66,12 +60,6 @@ def get_register_router(
         Не регирируем пользователя сразу,
         создаем данные для регистрации и валидируем их
         """
-        existing_user = await user_manager.user_db.get_by_email(user_create.email)
-        if existing_user is not None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorCode.REGISTER_USER_ALREADY_EXISTS,
-            )
         try:
             await user_manager.validate_password(user_create.password, user_create)
         except exceptions.InvalidPasswordException as exc:
@@ -82,7 +70,10 @@ def get_register_router(
                     "reason": exc.reason,
                 },
             ) from exc
-
+        existing_user = await user_manager.user_db.get_by_email(user_create.email)
+        if existing_user is not None:
+            await user_manager.send_existing_email_notice(user_create.email)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         user_dict = user_create.create_update_dict()
         password = user_dict.pop("password")
         user_dict["hashed_password"] = password_helper.hash(password)

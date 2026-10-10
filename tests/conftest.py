@@ -155,7 +155,7 @@ async def auth_app(app, mock_user_db):
 
 
 @pytest_asyncio.fixture
-async def client(auth_app):
+async def client(auth_app, override_cache_manager):
     """Async HTTP-клиент для вызова API аутентификации."""
     async with AsyncClient(
         transport=ASGITransport(app=auth_app),
@@ -176,10 +176,10 @@ def gateway_client():
 
 
 @pytest.fixture
-def user_manager(mock_user_db):
+def user_manager(mock_user_db, fake_cache_manager):
     mock_user_db.session = SimpleNamespace()
     mock_user_db.user_table = User
-    return UserManager(mock_user_db)
+    return UserManager(mock_user_db, fake_cache_manager)
 
 
 @pytest.fixture
