@@ -15,7 +15,7 @@ from fastapi_users.router.common import ErrorCode
 import app.services.audit as audit_service
 from app.db.models import User
 from app.routes.reset_pass import EmailForgotPass, ResetPass
-from app.schemas.users import UserUpdateEmail, UserUpdatePassword
+from app.schemas.users import UserCreate, UserUpdateEmail, UserUpdatePassword
 from app.services.user_manager import UserManager
 from config import settings
 from main import request_validation_exception_handler
@@ -35,7 +35,7 @@ def test_user_manager_token_lifetime_defaults():
 
 
 @pytest.mark.asyncio
-async def test_forgot_password_sends_recovery_link(mock_audit_log):
+async def test_forgot_password_sends_recovery_link(mock_audit_log, user_manager):
     """Запрос восстановления пароля должен отправить ссылку с reset-token."""
     user = SimpleNamespace(
         id=11,
@@ -45,12 +45,11 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
         is_superuser=False,
         is_verified=True,
     )
-    manager = UserManager(SimpleNamespace())
     token = "reset.token.value"
     with patch(
         "app.services.user_manager.send_email", new_callable=AsyncMock
     ) as send_email_mock:
-        await manager.on_after_forgot_password(user, token, SimpleNamespace())
+        await user_manager.on_after_forgot_password(user, token, SimpleNamespace())
 
     send_email_mock.assert_awaited_once()
     recipient, subject, body = send_email_mock.await_args.args
@@ -69,9 +68,8 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log):
 
 
 @pytest.mark.asyncio
-async def test_user_manager_update_uses_new_password(mock_user_db):
+async def test_user_manager_update_uses_new_password(mock_user_db, user_manager):
     """UserManager.update должен прокидывать в БД только новый пароль."""
-    manager = UserManager(mock_user_db)
     user = SimpleNamespace(
         id=1,
         email="user@example.com",
@@ -85,7 +83,7 @@ async def test_user_manager_update_uses_new_password(mock_user_db):
         new_password="newpassword123",
     )
 
-    updated_user = await manager.update(update, user, safe=True)
+    updated_user = await user_manager.update(update, user, safe=True)
 
     assert updated_user is user
     assert mock_user_db.update_called
@@ -98,7 +96,9 @@ async def test_user_manager_update_uses_new_password(mock_user_db):
 
 
 @pytest.mark.asyncio
-async def test_user_manager_change_password_returns_none_on_stale_hash():
+async def test_user_manager_change_password_returns_none_on_stale_hash(
+    fake_cache_manager,
+):
     """Если hash в БД уже изменился, смена пароля должна считаться неуспешной."""
     execute_result = SimpleNamespace(rowcount=0)
     session = SimpleNamespace(
@@ -108,7 +108,7 @@ async def test_user_manager_change_password_returns_none_on_stale_hash():
         refresh=AsyncMock(),
     )
     user_db = SimpleNamespace(session=session, user_table=User)
-    manager = UserManager(user_db)
+    manager = UserManager(user_db, fake_cache_manager)
     user = SimpleNamespace(
         id=1,
         email="user@example.com",
@@ -263,7 +263,7 @@ async def test_change_password_rejects_bad_current_password(
 
 @pytest.mark.asyncio
 async def test_request_change_email_sends_verification_link(
-    app, mock_user_db, mock_audit_log
+    app, mock_user_db, mock_audit_log, fake_cache_manager
 ):
     """Запрос смены email должен отправить письмо с токеном подтверждения."""
     route = _get_route(app, "users:patch_email_current_user")
@@ -280,7 +280,7 @@ async def test_request_change_email_sends_verification_link(
         new_email="new@example.com",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db)
+    user_manager = UserManager(mock_user_db, fake_cache_manager)
     with (
         patch.object(
             user_manager.password_helper,
@@ -331,7 +331,7 @@ async def test_request_change_email_sends_verification_link(
 
 @pytest.mark.asyncio
 async def test_request_change_email_lowercases_emails(
-    app, mock_user_db, mock_audit_log
+    app, mock_user_db, mock_audit_log, fake_cache_manager
 ):
     """Email при запросе смены приводится к нижнему регистру до lookup и токена."""
     route = _get_route(app, "users:patch_email_current_user")
@@ -348,7 +348,7 @@ async def test_request_change_email_lowercases_emails(
         new_email="New@Example.COM",
         password="currentpassword123",
     )
-    user_manager = UserManager(mock_user_db)
+    user_manager = UserManager(mock_user_db, fake_cache_manager)
 
     with (
         patch.object(
@@ -390,11 +390,13 @@ async def test_request_change_email_lowercases_emails(
 
 
 @pytest.mark.asyncio
-async def test_change_email_token_is_stored_and_replaces_previous_request():
+async def test_change_email_token_is_stored_and_replaces_previous_request(
+    fake_cache_manager,
+):
     """При наличии SQLAlchemy session pending-токен смены email сохраняется в БД."""
     session = SimpleNamespace()
     user_db = SimpleNamespace(session=session)
-    manager = UserManager(user_db)
+    manager = UserManager(user_db, fake_cache_manager)
     user = SimpleNamespace(id=7)
     token_db = SimpleNamespace(replace_for_user=AsyncMock())
 
@@ -755,3 +757,37 @@ async def test_reset_password_success(reset_router):
         "valid-password",
         request,
     )
+
+
+@pytest.mark.asyncio
+async def test_register_existing_email_returns_204(app, user_manager):
+    """При существующем email регистрация возвращает 204 и отправляет уведомление."""
+    route = _get_route(app, "register:register")
+
+    user = SimpleNamespace(
+        id=11,
+        email="user@example.com",
+        hashed_password="hashed",
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+    )
+
+    user_manager.user_db.get_by_email = AsyncMock(return_value=user)
+    user_manager.send_existing_email_notice = AsyncMock()
+    user_manager.on_before_register = AsyncMock()
+
+    response = await route.endpoint(
+        request=SimpleNamespace(),
+        user_create=UserCreate(
+            email="user@example.com",
+            password="valid-password-123",
+        ),
+        user_manager=user_manager,
+    )
+
+    assert response.status_code == 204
+
+    user_manager.user_db.get_by_email.assert_awaited_once_with("user@example.com")
+    user_manager.send_existing_email_notice.assert_awaited_once_with("user@example.com")
+    user_manager.on_before_register.assert_not_awaited()

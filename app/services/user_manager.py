@@ -24,7 +24,9 @@ from app.clients.gateway_client import GatewayClient
 from app.db.database import get_user_db
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
 from app.db.models import User
+from app.dependencies.cache import get_cache_manager
 from app.schemas.reset_pass import VerifyOperation, VerifyResult
+from app.services.cache import CacheManager
 from app.services.email import send_email
 from app.utils.registration_token import (
     InvalidRegistrationToken,
@@ -55,11 +57,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = "fastapi-users:change_email"
 
-    def __init__(
-        self,
-        user_db: SQLAlchemyUserDatabase,
-    ):
+    def __init__(self, user_db: SQLAlchemyUserDatabase, cache_manager: CacheManager):
         super().__init__(user_db)
+        self.cache_manager = cache_manager
         self.gateway_client = GatewayClient()
 
     @staticmethod
@@ -224,6 +224,46 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         logger.info(
             "Пользователь запросил регистрацию, отправлено письмо на почту %s.",
             user_dict["email"],
+        )
+
+    @staticmethod
+    def _get_register_notice_key(email: str) -> str:
+        normalized_email = email.strip().lower()
+        return f"auth:register_notice:{normalized_email}"
+
+    async def send_existing_email_notice(
+        self,
+        email: str,
+    ) -> None:
+        """Уведомляем о попытке регистрации на существующий email."""
+
+        if not await self.cache_manager.acquire_cooldown(
+            self._get_register_notice_key(email=email), ttl=300
+        ):
+            logger.info(
+                "Уведомление о повторной регистрации пропущено: достигнут лимит отправки."
+            )
+            return
+        await send_email(
+            email,
+            "Попытка регистрации — 3шагадо",
+            """
+            <html>
+                <body>
+                    <p>
+                        Кто-то пытался зарегистрироваться с вашим email.
+                        Если это были вы — войдите в аккаунт или сбросьте пароль.
+                        Если нет — проигнорируйте это письмо.
+                        <br>
+                        <br>
+                        Команда «3шагадо»
+                    </p>
+                </body>
+            </html>
+            """,
+        )
+        logger.info(
+            "Отправлено уведомление о попытке регистрации на существующий email."
         )
 
     async def on_after_verify(
@@ -611,8 +651,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
 async def get_user_manager(
     user_db: SQLAlchemyUserDatabase = Depends(get_user_db),
+    cache_manager: CacheManager = Depends(get_cache_manager),
 ):
-    yield UserManager(user_db)
+    yield UserManager(user_db, cache_manager=cache_manager)
 
 
 UserManagerDep = Annotated[UserManager, Depends(get_user_manager)]

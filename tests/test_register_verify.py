@@ -106,8 +106,7 @@ async def test_register_user_already_exists(client, mock_user_db):
         "/api/auth/register",
         json={"email": "taken@example.com", "password": "password123"},
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == ErrorCode.REGISTER_USER_ALREADY_EXISTS
+    assert response.status_code == 204
 
 
 @pytest.mark.asyncio
