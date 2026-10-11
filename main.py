@@ -56,6 +56,10 @@ async def request_validation_exception_handler(request: Request, exc):
         content={"detail": jsonable_encoder(remove_validation_input(exc.errors()))},
     )
 
+@app.get(f"/api/{settings.app_name.split('-')[0]}/health")
+async def health_check():
+    return {"status": "ok"}
+
 
 app.include_router(
     fastapi_users.get_auth_router(auth_backend), prefix="/api/auth", tags=["auth"]
@@ -92,6 +96,6 @@ app.include_router(admin_routes, prefix="/api/admin/users", tags=["admin"])
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])
 
 
-@app.get(f"/{settings.app_name.split('-')[0]}/health")
+@app.get(f"/api/{settings.app_name.split('-')[0]}/health")
 async def health_check():
     return {"status": "ok"}
