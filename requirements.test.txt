@@ -84,6 +84,10 @@ fastapi-limiter==0.2.0
 fastapi-mail==1.5.1
     # via -r requirements.txt
 fastapi-users==15.0.4
+    # via
+    #   -r requirements.txt
+    #   fastapi-users-db-sqlalchemy
+fastapi-users-db-sqlalchemy==7.0.0
     # via -r requirements.txt
 greenlet==3.2.4
     # via
@@ -112,9 +116,7 @@ idna==3.15
     #   email-validator
     #   httpx
 iniconfig==2.3.0
-    # via
-    #   -r requirements.test.in
-    #   pytest
+    # via pytest
 jinja2==3.1.6
     # via
     #   -r requirements.txt
@@ -137,16 +139,13 @@ markupsafe==3.0.3
 mypy==2.3.1
     # via -r requirements.test.in
 mypy-extensions==1.1.0
-    # via
-    #   -r requirements.test.in
-    #   mypy
+    # via mypy
 packaging==25.0
     # via pytest
 pathspec==1.1.1
     # via mypy
 pluggy==1.6.0
     # via
-    #   -r requirements.test.in
     #   pytest
     #   pytest-cov
 psycopg2-binary==2.9.11
@@ -214,10 +213,11 @@ ruff==0.16.4
     # via -r requirements.test.in
 sortedcontainers==2.4.0
     # via fakeredis
-sqlalchemy==2.0.44
+sqlalchemy[asyncio]==2.0.44
     # via
     #   -r requirements.txt
     #   alembic
+    #   fastapi-users-db-sqlalchemy
 starlette==0.50.0
     # via
     #   -r requirements.txt

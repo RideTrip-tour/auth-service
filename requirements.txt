@@ -56,6 +56,10 @@ fastapi-limiter==0.2.0
 fastapi-mail==1.5.1
     # via -r requirements.in
 fastapi-users==15.0.4
+    # via
+    #   -r requirements.in
+    #   fastapi-users-db-sqlalchemy
+fastapi-users-db-sqlalchemy==7.0.0
     # via -r requirements.in
 greenlet==3.2.4
     # via sqlalchemy
@@ -118,10 +122,11 @@ python-multipart==0.0.31
     # via fastapi-users
 redis==8.1.0
     # via -r requirements.in
-sqlalchemy==2.0.44
+sqlalchemy[asyncio]==2.0.44
     # via
     #   -r requirements.in
     #   alembic
+    #   fastapi-users-db-sqlalchemy
 starlette==0.50.0
     # via
     #   fastapi
