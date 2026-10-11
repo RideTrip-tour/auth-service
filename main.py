@@ -94,8 +94,3 @@ app.include_router(
 app.include_router(admin_routes, prefix="/api/admin/users", tags=["admin"])
 
 app.include_router(token_router, prefix="/api/auth", tags=["auth"])
-
-
-@app.get(f"/api/{settings.app_name.split('-')[0]}/health")
-async def health_check():
-    return {"status": "ok"}
