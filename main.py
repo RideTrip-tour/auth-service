@@ -56,6 +56,7 @@ async def request_validation_exception_handler(request: Request, exc):
         content={"detail": jsonable_encoder(remove_validation_input(exc.errors()))},
     )
 
+
 @app.get(f"/api/{settings.app_name.split('-')[0]}/health")
 async def health_check():
     return {"status": "ok"}
