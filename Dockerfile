@@ -1,11 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        postgresql-client \
-        redis-tools \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home appuser
+RUN apk add --no-cache \
+    postgresql-client \
+    redis
+    
+RUN addgroup -S appgroup \
+    && adduser -S -G appgroup appuser
 
 WORKDIR /app
 
