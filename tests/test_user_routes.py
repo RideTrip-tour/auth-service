@@ -791,3 +791,34 @@ async def test_register_existing_email_returns_204(app, user_manager):
     user_manager.user_db.get_by_email.assert_awaited_once_with("user@example.com")
     user_manager.send_existing_email_notice.assert_awaited_once_with("user@example.com")
     user_manager.on_before_register.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_current_user_success(app):
+    route = _get_route(app, "users:delete_current_user")
+
+    user = SimpleNamespace(id=12)
+    user_manager = SimpleNamespace(
+        delete_account=AsyncMock()
+    )
+    request = MagicMock()
+    response = MagicMock()
+
+    result = await route.endpoint(
+        request=request,
+        response=response,
+        user=user,
+        user_manager=user_manager,
+    )
+
+    user_manager.delete_account.assert_awaited_once_with(
+        user, request
+    )
+    response.delete_cookie.assert_called_once_with(
+        key=settings.refresh_token_name,
+        path="/",
+    )
+    assert result["status"] == (
+        "The account has been deleted. "
+        "It can be restored within 14 days."
+    )

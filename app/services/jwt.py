@@ -26,7 +26,7 @@ class JWTStrategyCustom(JWTStrategy[User, int]):
     async def write_token(self, user: models.UP) -> str:
         data = {
             "sub": str(user.id),
-            "is_active": bool(user.is_verified),
+            "is_active": bool(user.is_verified and user.is_active),
             "is_superuser": bool(user.is_superuser),
             "aud": settings.gateway_name,
         }

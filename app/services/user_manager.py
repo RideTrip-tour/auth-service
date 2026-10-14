@@ -1,12 +1,12 @@
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from textwrap import dedent
 from typing import Annotated
 from urllib.parse import urlencode
 
 import jwt
-from fastapi import Depends, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi_users import (
     BaseUserManager,
     IntegerIDMixin,
@@ -20,6 +20,7 @@ from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import update as sqlalchemy_update
 
 import app.services.audit as audit_service
+from app.services.jwt import SQLAlchemyRefreshTokenDatabase
 from app.clients.gateway_client import GatewayClient
 from app.db.database import get_user_db
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
@@ -646,6 +647,79 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             request=request,
             user_id=user.id,
             details={"change_type": "password"},
+        )
+    
+    async def delete_account(
+        self,
+        user: User,
+        request: Request | None = None,
+    ) -> None:
+        """Мягко удаляет аккаунт пользователя."""
+        self._validate_account_deletion(user)
+
+        await self._soft_delete_account(user)
+        await self._log_account_deletion(user, request)
+        await self._send_account_deletion_email(user)
+
+    @staticmethod
+    def _validate_account_deletion(user: User) -> None:
+        if user.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account already deleted",
+            )
+
+    async def _soft_delete_account(self, user: User) -> None:
+        session = getattr(self.user_db, "session", None)
+        if session is None:
+            raise RuntimeError(
+                "Account deletion requires SQLAlchemy session"
+            )
+
+        token_db = SQLAlchemyRefreshTokenDatabase(session)
+        try:
+            user.soft_delete()
+            await token_db.delete_by_user_id(user.id)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    async def _log_account_deletion(
+        self,
+        user: User,
+        request: Request | None = None,
+    ) -> None:
+        await audit_service.log_event(
+            audit_service.AuditEventType.CHANGE_COMPLETED,
+            request=request,
+            user_id=user.id,
+            details={"change_type": "account_soft_delete"},
+        )
+
+    async def _send_account_deletion_email(self, user: User) -> None:
+        if user.deleted_at is None:
+            raise RuntimeError(
+                "Cannot send deletion email for an active account"
+            )
+        restore_until = user.deleted_at + timedelta(days=14)
+        await send_email(
+            user.email,
+            "Удаление аккаунта — 3шагадо",
+            dedent(
+                f"""
+                Здравствуйте!
+                Ваш аккаунт в сервисе «3шагадо» был удалён.
+                Вы можете восстановить аккаунт до:
+                {restore_until.strftime("%d.%m.%Y %H:%M UTC")}
+                Команда «3шагадо»
+                """
+            ).strip(),
+            html=False,
+        )
+        logger.info(
+            "Письмо об удалении аккаунта отправлено пользователю %s.",
+            user.id,
         )
 
 
