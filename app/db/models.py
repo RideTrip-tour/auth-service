@@ -83,8 +83,6 @@ class User(AuditMixin, SQLAlchemyBaseUserTable[int], Base):
         self.is_active = True
 
 
-
-
 class RefreshToken(AuditMixin, Base):
     __tablename__ = "refresh_tokens"
 

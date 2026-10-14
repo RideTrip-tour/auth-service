@@ -20,7 +20,6 @@ from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import update as sqlalchemy_update
 
 import app.services.audit as audit_service
-from app.services.jwt import SQLAlchemyRefreshTokenDatabase
 from app.clients.gateway_client import GatewayClient
 from app.db.database import get_user_db
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
@@ -29,6 +28,7 @@ from app.dependencies.cache import get_cache_manager
 from app.schemas.reset_pass import VerifyOperation, VerifyResult
 from app.services.cache import CacheManager
 from app.services.email import send_email
+from app.services.jwt import SQLAlchemyRefreshTokenDatabase
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -648,7 +648,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_id=user.id,
             details={"change_type": "password"},
         )
-    
+
     async def delete_account(
         self,
         user: User,
@@ -672,9 +672,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def _soft_delete_account(self, user: User) -> None:
         session = getattr(self.user_db, "session", None)
         if session is None:
-            raise RuntimeError(
-                "Account deletion requires SQLAlchemy session"
-            )
+            raise RuntimeError("Account deletion requires SQLAlchemy session")
 
         token_db = SQLAlchemyRefreshTokenDatabase(session)
         try:
@@ -699,9 +697,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
     async def _send_account_deletion_email(self, user: User) -> None:
         if user.deleted_at is None:
-            raise RuntimeError(
-                "Cannot send deletion email for an active account"
-            )
+            raise RuntimeError("Cannot send deletion email for an active account")
         restore_until = user.deleted_at + timedelta(days=14)
         await send_email(
             user.email,

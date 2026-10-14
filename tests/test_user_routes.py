@@ -798,9 +798,7 @@ async def test_delete_current_user_success(app):
     route = _get_route(app, "users:delete_current_user")
 
     user = SimpleNamespace(id=12)
-    user_manager = SimpleNamespace(
-        delete_account=AsyncMock()
-    )
+    user_manager = SimpleNamespace(delete_account=AsyncMock())
     request = MagicMock()
     response = MagicMock()
 
@@ -811,14 +809,11 @@ async def test_delete_current_user_success(app):
         user_manager=user_manager,
     )
 
-    user_manager.delete_account.assert_awaited_once_with(
-        user, request
-    )
+    user_manager.delete_account.assert_awaited_once_with(user, request)
     response.delete_cookie.assert_called_once_with(
         key=settings.refresh_token_name,
         path="/",
     )
     assert result["status"] == (
-        "The account has been deleted. "
-        "It can be restored within 14 days."
+        "The account has been deleted. It can be restored within 14 days."
     )

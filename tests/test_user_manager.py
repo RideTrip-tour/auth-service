@@ -1,9 +1,8 @@
-from types import SimpleNamespace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from fastapi import HTTPException
 
 from app.services.user_manager import UserManager
@@ -91,12 +90,8 @@ async def test_delete_account_success(user_manager, user):
     await user_manager.delete_account(user)
 
     user_manager._soft_delete_account.assert_awaited_once_with(user)
-    user_manager._log_account_deletion.assert_awaited_once_with(
-        user, None
-    )
-    user_manager._send_account_deletion_email.assert_awaited_once_with(
-        user
-    )
+    user_manager._log_account_deletion.assert_awaited_once_with(user, None)
+    user_manager._send_account_deletion_email.assert_awaited_once_with(user)
 
 
 @pytest.mark.asyncio
@@ -108,6 +103,7 @@ async def test_delete_account_already_deleted(user_manager, user):
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Account already deleted"
+
 
 @pytest.mark.asyncio
 async def test_soft_delete_account_success(user_manager, user):
@@ -135,7 +131,9 @@ async def test_soft_delete_account_success(user_manager, user):
 async def test_send_account_deletion_email(user_manager, user):
     user.deleted_at = datetime(2026, 10, 14, 10, 0, tzinfo=UTC)
 
-    with patch("app.services.user_manager.send_email", new_callable=AsyncMock) as send_email_mock:
+    with patch(
+        "app.services.user_manager.send_email", new_callable=AsyncMock
+    ) as send_email_mock:
         await user_manager._send_account_deletion_email(user)
 
     send_email_mock.assert_awaited_once()

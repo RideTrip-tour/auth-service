@@ -139,6 +139,7 @@ def user():
         soft_delete=AsyncMock(),
     )
 
+
 @pytest.fixture
 def app():
     """Приложение FastAPI для тестов."""
