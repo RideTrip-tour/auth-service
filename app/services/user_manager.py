@@ -28,7 +28,7 @@ from app.dependencies.cache import get_cache_manager
 from app.schemas.reset_pass import VerifyOperation, VerifyResult
 from app.services.cache import CacheManager
 from app.services.email import send_email
-from app.services.jwt import SQLAlchemyRefreshTokenDatabase
+from app.services.jwt import JWTStrategyCustom, get_strategy
 from app.utils.registration_token import (
     InvalidRegistrationToken,
     decrypt_registration_token,
@@ -658,6 +658,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         self._validate_account_deletion(user)
 
         await self._soft_delete_account(user)
+        strategy: JWTStrategyCustom = get_strategy()
+        await strategy.destroy_tokens_by_user(user)
         await self._log_account_deletion(user, request)
         await self._send_account_deletion_email(user)
 
@@ -673,11 +675,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         session = getattr(self.user_db, "session", None)
         if session is None:
             raise RuntimeError("Account deletion requires SQLAlchemy session")
-
-        token_db = SQLAlchemyRefreshTokenDatabase(session)
         try:
             user.soft_delete()
-            await token_db.delete_by_user_id(user.id)
             await session.commit()
         except Exception:
             await session.rollback()

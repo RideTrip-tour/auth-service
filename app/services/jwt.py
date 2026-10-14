@@ -5,7 +5,6 @@ from fastapi_users import (
 )
 from fastapi_users.authentication import (
     JWTStrategy,
-    Strategy,
 )
 from fastapi_users.jwt import generate_jwt
 
@@ -48,7 +47,7 @@ class JWTStrategyCustom(JWTStrategy[User, int]):
                     await token_db.delete_by_user_id(user.id)
 
 
-def get_strategy() -> Strategy[User, int]:
+def get_strategy() -> JWTStrategyCustom:
     return JWTStrategyCustom(
         secret=SECRET,
         lifetime_seconds=settings.access_token_expire_sec,

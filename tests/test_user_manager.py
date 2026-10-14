@@ -87,9 +87,14 @@ async def test_delete_account_success(user_manager, user):
     user_manager._log_account_deletion = AsyncMock()
     user_manager._send_account_deletion_email = AsyncMock()
 
-    await user_manager.delete_account(user)
+    with patch("app.services.user_manager.get_strategy") as get_strategy_mock:
+        strategy = get_strategy_mock.return_value
+        strategy.destroy_tokens_by_user = AsyncMock()
+
+        await user_manager.delete_account(user)
 
     user_manager._soft_delete_account.assert_awaited_once_with(user)
+    strategy.destroy_tokens_by_user.assert_awaited_once_with(user)
     user_manager._log_account_deletion.assert_awaited_once_with(user, None)
     user_manager._send_account_deletion_email.assert_awaited_once_with(user)
 
@@ -110,19 +115,9 @@ async def test_soft_delete_account_success(user_manager, user):
     session = AsyncMock()
     user_manager.user_db.session = session
 
-    with (
-        patch(
-            "app.services.user_manager.SQLAlchemyRefreshTokenDatabase"
-        ) as token_db_cls,
-        patch.object(user, "soft_delete", wraps=user.soft_delete) as soft_delete,
-    ):
-        token_db = token_db_cls.return_value
-        token_db.delete_by_user_id = AsyncMock()
+    await user_manager._soft_delete_account(user)
 
-        await user_manager._soft_delete_account(user)
-
-    soft_delete.assert_called_once()
-    token_db.delete_by_user_id.assert_awaited_once_with(user.id)
+    user.soft_delete.assert_called_once()
     session.commit.assert_awaited_once()
     session.rollback.assert_not_awaited()
 

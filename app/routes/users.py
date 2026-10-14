@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.authentication import AuthenticationBackend, Authenticator
 from fastapi_users.manager import UserManagerDependency
@@ -10,6 +10,7 @@ from fastapi_users.router.common import ErrorCode, ErrorModel
 import app.services.audit as audit_service
 from app.db.models import User
 from app.schemas.users import StatusResponse, UserUpdateEmail, UserUpdatePassword
+from app.services.cookie import cookie_transport
 from app.services.email import send_email
 from app.services.jwt import JWTStrategyCustom
 from app.services.user_manager import UserManagerDep
@@ -271,20 +272,13 @@ def get_users_router(
     )
     async def delete_account(
         request: Request,
-        response: Response,
         user: Annotated[User, Depends(get_current_active_user)],
         user_manager: UserManagerDep,
     ):
         """Мягко удаляет аккаунт пользователя."""
         await user_manager.delete_account(user, request)
-
-        response.delete_cookie(
-            key=settings.refresh_token_name,
-            path="/",
-        )
+        response = await cookie_transport.get_logout_response()
         logger.info("Пользователь %s удалил аккаунт.", user.id)
-        return {
-            "status": "The account has been deleted. It can be restored within 14 days."
-        }
+        return response
 
     return router
