@@ -10,6 +10,7 @@ from fastapi_users.router.common import ErrorCode, ErrorModel
 import app.services.audit as audit_service
 from app.db.models import User
 from app.schemas.users import StatusResponse, UserUpdateEmail, UserUpdatePassword
+from app.services.cookie import cookie_transport
 from app.services.email import send_email
 from app.services.jwt import JWTStrategyCustom
 from app.services.user_manager import UserManagerDep
@@ -258,5 +259,26 @@ def get_users_router(
         return {
             "status": "Подтвержение смены email отправлено, требуется подтверждение."
         }
+
+    @router.delete(
+        "/me",
+        status_code=status.HTTP_204_NO_CONTENT,
+        name="users:delete_current_user",
+        responses={
+            status.HTTP_401_UNAUTHORIZED: {
+                "description": "Missing token or inactive user.",
+            },
+        },
+    )
+    async def delete_account(
+        request: Request,
+        user: Annotated[User, Depends(get_current_active_user)],
+        user_manager: UserManagerDep,
+    ):
+        """Мягко удаляет аккаунт пользователя."""
+        await user_manager.delete_account(user, request)
+        response = await cookie_transport.get_logout_response()
+        logger.info("Пользователь %s удалил аккаунт.", user.id)
+        return response
 
     return router

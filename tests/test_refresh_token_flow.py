@@ -54,7 +54,7 @@ async def test_login_creates_refresh_token_without_deleting_existing_ones(
     mock_audit_log,
 ):
     """Login должен создавать новый refresh token, но не удалять старые."""
-    user = SimpleNamespace(id=10, is_verified=True, is_superuser=False)
+    user = SimpleNamespace(id=10, is_verified=True, is_superuser=False, is_active=True)
     strategy = get_strategy()
     fake_refresh_token = SimpleNamespace(token="new.refresh.token")
     fake_token_db = SimpleNamespace(
@@ -184,7 +184,7 @@ async def test_login_rejects_oversized_form_before_auth(client, mock_user_db):
 async def test_refresh_route_logs_session_rotation(app, mock_audit_log):
     """Успешный refresh должен писать событие rotation новой активной сессии."""
     route = _get_route(app, "token:refresh_token")
-    user = SimpleNamespace(id=12, is_verified=True, is_superuser=False)
+    user = SimpleNamespace(id=12, is_verified=True, is_superuser=False, is_active=True)
     db_token = SimpleNamespace(user_id=user.id, user=user)
     new_token = SimpleNamespace(id=99, token="new.refresh.token")
     fake_db = _FakeRefreshTokenDb(db_token, new_token)

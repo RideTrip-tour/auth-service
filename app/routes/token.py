@@ -7,8 +7,9 @@ from app.db.refresh_token_database import (
     SQLAlchemyRefreshTokenDatabase,
     get_refresh_token_db,
 )
+from app.services.cookie import cookie_transport
 from app.services.jwt import get_strategy
-from app.services.users import auth_backend, cookie_transport
+from app.services.users import auth_backend
 from config import settings
 
 token_router = APIRouter()

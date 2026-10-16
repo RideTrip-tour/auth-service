@@ -131,6 +131,16 @@ def mock_user_db() -> MockUserDb:
 
 
 @pytest.fixture
+def user():
+    return SimpleNamespace(
+        id=123,
+        email="test@example.com",
+        deleted_at=None,
+        soft_delete=AsyncMock(),
+    )
+
+
+@pytest.fixture
 def app():
     """Приложение FastAPI для тестов."""
     from main import app as fastapi_app

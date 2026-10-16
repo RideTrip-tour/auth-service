@@ -11,8 +11,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.services.cookie import CookieTransportCustom
 from app.services.jwt import get_strategy
-from app.services.users import CookieTransportCustom
 from config import settings
 
 
