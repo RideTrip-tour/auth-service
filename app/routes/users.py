@@ -262,7 +262,6 @@ def get_users_router(
 
     @router.delete(
         "/me",
-        response_model=StatusResponse,
         status_code=status.HTTP_204_NO_CONTENT,
         name="users:delete_current_user",
         responses={
