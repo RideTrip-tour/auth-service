@@ -191,7 +191,9 @@ async def test_verify_success(client, mock_user_db, mocker):
     mock_login_user.return_value = created_user
 
     response = await client.post("/api/auth/verify", json={"token": token})
-    mock_create_profile.assert_awaited_once_with(created_user)
+    mock_create_profile.assert_awaited_once_with(
+        user=created_user, request_id="request_id"
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == email

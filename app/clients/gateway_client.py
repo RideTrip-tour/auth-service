@@ -20,13 +20,14 @@ class GatewayClient(InitialClient):
             timeout=10.0,
         )
 
-    async def create_profile(self, user) -> None:
+    async def create_profile(self, user, request_id: str) -> None:
         user_context = await self._create_user_context(user)
 
         await self.request(
             method="POST",
             path="/api/profile/create",
             user_context=user_context,
+            request_id=request_id,
         )
 
     async def _create_user_context(self, user) -> str:
