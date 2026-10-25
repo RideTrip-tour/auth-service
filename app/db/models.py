@@ -74,6 +74,14 @@ class User(AuditMixin, SQLAlchemyBaseUserTable[int], Base):
         cascade="all, delete-orphan",
     )
 
+    def soft_delete(self) -> None:
+        super().soft_delete()
+        self.is_active = False
+
+    def restore(self) -> None:
+        super().restore()
+        self.is_active = True
+
 
 class RefreshToken(AuditMixin, Base):
     __tablename__ = "refresh_tokens"

@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi_users import exceptions, models, schemas
 from fastapi_users.authentication import AuthenticationBackend, Authenticator
 from fastapi_users.manager import UserManagerDependency
@@ -257,6 +257,34 @@ def get_users_router(
         )
         return {
             "status": "Подтвержение смены email отправлено, требуется подтверждение."
+        }
+
+    @router.delete(
+        "/me",
+        response_model=StatusResponse,
+        name="users:delete_current_user",
+        responses={
+            status.HTTP_401_UNAUTHORIZED: {
+                "description": "Missing token or inactive user.",
+            },
+        },
+    )
+    async def delete_account(
+        request: Request,
+        response: Response,
+        user: Annotated[User, Depends(get_current_active_user)],
+        user_manager: UserManagerDep,
+    ):
+        """Мягко удаляет аккаунт пользователя."""
+        await user_manager.delete_account(user, request)
+
+        response.delete_cookie(
+            key=settings.refresh_token_name,
+            path="/",
+        )
+        logger.info("Пользователь %s удалил аккаунт.", user.id)
+        return {
+            "status": "The account has been deleted. It can be restored within 14 days."
         }
 
     return router
