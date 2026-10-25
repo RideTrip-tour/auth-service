@@ -1,7 +1,6 @@
 import logging
-import time
 
-import httpx
+from initial_client import InitialClient
 
 from app.services.jwt import get_strategy
 from config import settings
@@ -9,82 +8,28 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-class GatewayClient:
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
+class GatewayClient(InitialClient):
     def __init__(self):
-        if not hasattr(self, "client"):
-            self.client = httpx.AsyncClient(
-                base_url=settings.gateway_url,
-                timeout=10.0,
-            )
-            logger.debug("Gateway client initialized")
+        super().__init__(
+            base_url=settings.gateway_url,
+            service_id=settings.service_id,
+            service_token=settings.service_token,
+            gateway_name=settings.gateway_name,
+            access_token_expire_sec=settings.access_token_expire_sec,
+            jwt_secret=settings.jwt_secret,
+            timeout=10.0,
+        )
 
-    async def create_profile(self, user) -> None:
+    async def create_profile(self, user, request_id: str) -> None:
         user_context = await self._create_user_context(user)
 
-        await self._request(
+        await self.request(
             method="POST",
             path="/api/profile/create",
             user_context=user_context,
+            request_id=request_id,
         )
 
     async def _create_user_context(self, user) -> str:
         strategy = get_strategy()
         return await strategy.write_token(user)
-
-    def _get_headers(self, user_context: str) -> dict[str, str]:
-        return {
-            "X-Service-ID": settings.service_id,
-            "X-Service-Token": settings.service_token,
-            "X-User-Context": user_context,
-        }
-
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        user_context: str,
-    ) -> None:
-        started_at = time.monotonic()
-
-        logger.info(
-            "Gateway request started: %s: %s",
-            method,
-            path,
-        )
-
-        try:
-            response = await self.client.request(
-                method,
-                path,
-                headers=self._get_headers(user_context),
-                json={},
-            )
-            response.raise_for_status()
-            elapsed = time.monotonic() - started_at
-            logger.info(
-                "Gateway request completed: %s: %s -> %s in %s s",
-                method,
-                path,
-                response.status_code,
-                elapsed,
-            )
-        except Exception:
-            elapsed = time.monotonic() - started_at
-
-            logger.exception(
-                "Gateway request failed: %s: %s in %s s",
-                method,
-                path,
-                elapsed,
-            )
-            raise
-
-    async def close(self) -> None:
-        await self.client.aclose()

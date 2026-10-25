@@ -388,8 +388,17 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         if type_operation == VerifyOperation.REGISTER:
             created_user = await self.register_user(data)
+            # TODO: Убрать fallback после добавления request_id в middleware
+            request_id = (
+                getattr(request.state, "request_id", None)
+                if request is not None
+                else None
+            ) or "request_id"
+
             try:
-                await self.gateway_client.create_profile(created_user)
+                await self.gateway_client.create_profile(
+                    user=created_user, request_id=request_id
+                )
             except Exception as exc:
                 logger.exception(
                     "Не удалось создать профиль для пользователя user_id=%s. "

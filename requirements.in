@@ -11,8 +11,9 @@ httpx-oauth==0.16.1
 psycopg2-binary==2.9.11
 pydantic==2.12.4
 pydantic-settings==2.14.2
-PyJWT==2.15.0
+PyJWT==2.15.1
 pyrate-limiter==4.5.0
 redis==8.1.0
+initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@main
 SQLAlchemy==2.0.44
 uvicorn==0.38.0
