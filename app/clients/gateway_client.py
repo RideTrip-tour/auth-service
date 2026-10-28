@@ -22,7 +22,7 @@ class GatewayClient(InitialClient):
         )
 
     async def create_profile(
-        self, user, request_id: str, json: dict[str, Any] | None=None
+        self, user, request_id: str, json: dict[str, Any] | None = None
     ) -> None:
         user_context = await self._create_user_context(user)
 
