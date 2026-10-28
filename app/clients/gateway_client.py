@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from initial_client import InitialClient
 
@@ -20,7 +21,9 @@ class GatewayClient(InitialClient):
             timeout=10.0,
         )
 
-    async def create_profile(self, user, request_id: str) -> None:
+    async def create_profile(
+        self, user, request_id: str, json: dict[str, Any] | None = None
+    ) -> None:
         user_context = await self._create_user_context(user)
 
         await self.request(
@@ -28,6 +31,7 @@ class GatewayClient(InitialClient):
             path="/api/profile/create",
             user_context=user_context,
             request_id=request_id,
+            json={} if json is None else json,
         )
 
     async def _create_user_context(self, user) -> str:
