@@ -123,7 +123,7 @@ idna==3.15
     #   httpx
 iniconfig==2.3.0
     # via pytest
-initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@a458a6636897aeecd8ae3b76b3c4b527b8f59ec7
+initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@126ac55a179faddb9daffa6d42adc5f74b16523c
     # via -r requirements.txt
 jinja2==3.1.6
     # via
