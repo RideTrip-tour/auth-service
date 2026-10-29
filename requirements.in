@@ -14,6 +14,6 @@ pydantic-settings==2.14.2
 PyJWT==2.15.1
 pyrate-limiter==4.5.0
 redis==8.1.0
-initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@3e64678313157a689faaebbb8e8944b9c9d5d15b
+initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@126ac55a179faddb9daffa6d42adc5f74b16523c
 SQLAlchemy==2.0.44
 uvicorn==0.38.0
