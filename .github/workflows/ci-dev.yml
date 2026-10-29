@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - develop
-  pull_request:
-    branches:
-      - develop
 
 permissions:
   contents: read
@@ -18,7 +15,7 @@ env:
   SERVICE_NAME: ${{ vars.SERVICE_NAME || 'auth-service' }}
   APP_NAME: ${{ vars.APP_NAME || 'auth' }}
   ENVIRONMENT: ${{ vars.ENVIRONMENT || 'DEV' }}
-  DB_SECRET_PREFIX: ${{ var.DB_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
+  DB_SECRET_PREFIX: ${{ vars.DB_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
 
 jobs:
   ruff:
@@ -40,8 +37,8 @@ jobs:
     if: github.event_name == 'push'
     uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
-      namespace: ${{ env.DOCKERHUB_NAMESPACE }}
-      service-name: ${{ env.SERVICE_NAME }}
+      namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
+      service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
       tag-prefix: dev
     secrets: inherit
 
@@ -49,10 +46,10 @@ jobs:
     needs: build
     uses: RideTrip-tour/ci-templates/.github/workflows/swarm-alembic-check.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
-      service-name: ${{ env.SERVICE_NAME }}
+      service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
       image-ref: ${{ needs.build.outputs.image-ref }}
-      data-network: ${{ env.DATA_NETWORK }}
-      db-secret-prefix: ${{ env.DB_SECRET_PREFIX }}
+      data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
+      db-secret-prefix: ${{ vars.DB_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
       environment: DEV
     secrets: inherit
 
@@ -60,10 +57,10 @@ jobs:
     needs: [build, alembic_check]
     uses: RideTrip-tour/ci-templates/.github/workflows/swarm-migrate.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
-      service-name: ${{ env.SERVICE_NAME || 'auth-service' }}
+      service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
       image-ref: ${{ needs.build.outputs.image-ref }}
-      data-network: ${{ env.DATA_NETWORK || 'data-network' }}
-      db-secret-prefix: ${{ env.DB_SECRET_PREFIX }}
+      data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
+      db-secret-prefix: ${{ vars.DB_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
       environment: DEV
     secrets: inherit
 
@@ -72,7 +69,7 @@ jobs:
     uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
       image-ref: ${{ needs.build.outputs.image-ref }}
-      swarm-service: ${{ env.SWARM_SERVICE }}
+      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
       environment: DEV
     secrets: inherit
 
@@ -80,9 +77,9 @@ jobs:
     needs: deploy
     uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
-      service-name: ${{ env.SERVICE_NAME }}
-      app-name: ${{ env.APP_NAME }}
-      data-network: ${{ env.DATA_NETWORK}}
+      service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
+      app-name: ${{ vars.APP_NAME || 'auth' }}
+      data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
       environment: DEV
     secrets: inherit
 
@@ -91,9 +88,9 @@ jobs:
     if: ${{ always() && (github.event_name == 'push' || contains(needs.*.result, 'failure')) }}
     uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
-      service-name: ${{ env.SERVICE_NAME }}
+      service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
       environment: DEV
-      swarm-service: ${{ env.SWARM_SERVICE }}
+      swarm-service: SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
       results-json: ${{ toJSON(needs) }}
       image-ref: ${{ needs.build.outputs.image-ref }}
     secrets: inherit
