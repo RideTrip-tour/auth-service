@@ -8,7 +8,6 @@ on:
       - main
 
 jobs:
-  jobs:
   ruff:
     uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
   
