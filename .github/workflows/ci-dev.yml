@@ -84,7 +84,7 @@ jobs:
     secrets: inherit
 
   notify:
-    needs: [ruff, tests, build, alembic_check, migrate, deploy, healthcheck]
+    needs: [ruff, tests, mypy, build, alembic_check, migrate, deploy, healthcheck]
     if: ${{ always() && (github.event_name == 'push' || contains(needs.*.result, 'failure')) }}
     uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
