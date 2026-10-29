@@ -25,7 +25,7 @@ def test_get_headers(gateway_client):
     assert headers["X-Service-ID"] == "service-id"
     assert headers["X-Service-Token"] == "service-token"
     assert headers["X-User-Context"] == "user-context"
-    assert headers["X-Request_ID"] == "request-id"
+    assert headers["X-Request-ID"] == "request-id"
 
 
 @pytest.mark.asyncio
