@@ -90,7 +90,7 @@ jobs:
     with:
       service-name: ${{ vars.SERVICE_NAME || 'auth-service' }}
       environment: DEV
-      swarm-service: SWARM_SERVICE: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
+      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
       results-json: ${{ toJSON(needs) }}
       image-ref: ${{ needs.build.outputs.image-ref }}
     secrets: inherit
