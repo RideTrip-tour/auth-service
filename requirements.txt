@@ -53,6 +53,7 @@ fastapi==0.121.3
     #   -r requirements.in
     #   fastapi-limiter
     #   fastapi-users
+    #   internal-middleware
 fastapi-limiter==0.2.0
     # via -r requirements.in
 fastapi-mail==1.5.1
@@ -84,6 +85,8 @@ idna==3.15
     #   email-validator
     #   httpx
 initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@126ac55a179faddb9daffa6d42adc5f74b16523c
+    # via -r requirements.in
+internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
     # via -r requirements.in
 jinja2==3.1.6
     # via fastapi-mail

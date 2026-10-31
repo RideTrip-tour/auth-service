@@ -48,4 +48,4 @@ async def test_create_profile(gateway_client, monkeypatch):
         AsyncMock(return_value=user_context),
     )
 
-    await gateway_client.create_profile(user=user, request_id="request-id")
+    await gateway_client.create_profile(user=user)
