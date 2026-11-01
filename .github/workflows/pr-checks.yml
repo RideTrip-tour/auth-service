@@ -9,23 +9,27 @@ on:
 
 jobs:
   ruff:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@8916915c1b46846f7a8acc311fa581893b6e655e
   
   mypy:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@8916915c1b46846f7a8acc311fa581893b6e655e
     with:
       mypy-target: app
 
   tests:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@8916915c1b46846f7a8acc311fa581893b6e655e
     with:
       coverage-source: app
       coverage-min: 90
   
+  alembic_check:
+    needs: [ruff, mypy, tests]
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@c8916915c1b46846f7a8acc311fa581893b6e655e
+  
   notify:
-    needs: [ruff, tests, mypy]
+    needs: [ruff, tests, mypy, alembic_check]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
-    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@8916915c1b46846f7a8acc311fa581893b6e655e
     with:
       service-name: ${{ vars.AUTH_SERVICE_NAME || 'auth-service' }}
       environment: DEV
