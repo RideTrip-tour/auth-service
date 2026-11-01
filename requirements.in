@@ -9,7 +9,7 @@ fastapi-users==15.0.4
 fastapi-users-db-sqlalchemy==7.0.0
 httpx==0.28.1
 httpx-oauth==0.16.1
-internal-client @ git+https://github.com/RideTrip-tour/internal_client.git@89ea2ec4fabfd74a595612ef6e024505d2ad8aec
+internal-client @ git+https://github.com/RideTrip-tour/internal_client.git@2f8bb3e9cf146e318f2a01e09fc544e4228f08bf
 internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
 psycopg2-binary==2.9.11
 pydantic==2.12.4
