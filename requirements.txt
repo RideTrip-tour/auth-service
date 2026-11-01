@@ -75,7 +75,7 @@ httpx==0.28.1
     # via
     #   -r requirements.in
     #   httpx-oauth
-    #   initial-client
+    #   internal-client
 httpx-oauth==0.16.1
     # via -r requirements.in
 idna==3.15
@@ -83,7 +83,7 @@ idna==3.15
     #   anyio
     #   email-validator
     #   httpx
-initial-client @ git+https://github.com/RideTrip-tour/internal_client.git@749e1710e6a5dd165cc4b7d90b797faed0ea9d96
+internal-client @ git+https://github.com/RideTrip-tour/internal_client.git@89ea2ec4fabfd74a595612ef6e024505d2ad8aec
     # via -r requirements.in
 internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
     # via -r requirements.in
@@ -119,7 +119,7 @@ pyjwt[crypto]==2.15.1
     # via
     #   -r requirements.in
     #   fastapi-users
-    #   initial-client
+    #   internal-client
 pyrate-limiter==4.5.0
     # via
     #   -r requirements.in
