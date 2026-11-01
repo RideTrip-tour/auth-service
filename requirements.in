@@ -16,5 +16,6 @@ pydantic-settings==2.14.2
 PyJWT==2.15.1
 pyrate-limiter==4.5.0
 redis==8.1.0
+internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
 SQLAlchemy==2.0.44
 uvicorn==0.38.0

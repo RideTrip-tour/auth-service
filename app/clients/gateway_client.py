@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from initial_client import InitialClient
+from internal_middleware.context import request_id_var
 
 from app.services.jwt import get_strategy
 from config import settings
@@ -21,16 +22,14 @@ class GatewayClient(InitialClient):
             timeout=10.0,
         )
 
-    async def create_profile(
-        self, user, request_id: str, json: dict[str, Any] | None = None
-    ) -> None:
+    async def create_profile(self, user, json: dict[str, Any] | None = None) -> None:
         user_context = await self._create_user_context(user)
 
         await self.request(
             method="POST",
             path="/api/profile/create",
             user_context=user_context,
-            request_id=request_id,
+            request_id=request_id_var.get(),
             json={} if json is None else json,
         )
 

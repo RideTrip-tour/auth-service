@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from internal_middleware import build_request_id_middleware
 
 from app.clients.gateway_client import GatewayClient
 from app.middleware.login_form import limit_login_form_body
@@ -46,6 +47,7 @@ app = FastAPI(
     openapi_url=f"/api/{settings.app_name.split('-')[0]}/openapi.json",
 )
 
+app.middleware("http")(build_request_id_middleware(logger=logger))
 app.middleware("http")(limit_login_form_body)
 
 
