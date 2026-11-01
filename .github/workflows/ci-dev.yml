@@ -31,7 +31,7 @@ jobs:
   build:
     needs: [ruff, tests, mypy, alembic_python_check]
     if: github.event_name == 'push'
-    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@7325f1ada6e3101179dd4958e6497ce13dc17917
+    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@2019541fb646c082aa8e7c2873d37eda9f86a8b8
     with:
       namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Debug reusable workflow output
         env:
-          IMAGE_REF: ${{ needs.build.outputs.image-ref }}
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
         run: |
           set -euo pipefail
           echo "Workflow output: $IMAGE_REF"
