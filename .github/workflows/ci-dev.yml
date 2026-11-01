@@ -10,22 +10,22 @@ permissions:
 
 jobs:
   ruff:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
   
   mypy:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
       mypy-target: app
 
   tests:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
       coverage-source: app
       coverage-min: 90
 
   alembic_python_check:
     needs: [ruff, mypy, tests]
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
   
 
   build:
@@ -40,10 +40,10 @@ jobs:
 
   alembic_check:
     needs: build
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-alembic-check.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-alembic-check.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
-      image-ref: ${{ needs.build.outputs.image-ref }}
+      image-ref: ${{ needs.build.outputs.image_ref }}
       data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
       db-secret-prefix: ${{ vars.DB_AUTH_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
       environment: DEV
@@ -51,10 +51,10 @@ jobs:
 
   migrate:
     needs: [build, alembic_check]
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-migrate.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-migrate.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
-      image-ref: ${{ needs.build.outputs.image-ref }}
+      image-ref: ${{ needs.build.outputs.image_ref }}
       data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
       db-secret-prefix: ${{ vars.DB_AUTH_SECRET_PREFIX || 'DB_AUTH_SERVICE'}}
       environment: DEV
@@ -62,16 +62,16 @@ jobs:
 
   deploy:
     needs: [build, migrate]
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
-      image-ref: ${{ needs.build.outputs.image-ref }}
+      image-ref: ${{ needs.build.outputs.image_ref }}
       swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
       environment: DEV
     secrets: inherit
 
   healthcheck:
     needs: deploy
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
       app-name: ${{ vars.APP_NAME || 'auth' }}
@@ -82,11 +82,11 @@ jobs:
   # notify:
   #   needs: [ruff, tests, mypy, build, alembic_check, migrate, deploy, healthcheck]
   #   if: ${{ always() && (github.event_name == 'push' || contains(needs.*.result, 'failure')) }}
-  #   uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@ecc67103246d43475d88ec91f21f8d8b96667da1
+  #   uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@2224b2f7e26db9fb52306db6108e409db95e7bb6
   #   with:
   #     service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
   #     environment: DEV
   #     swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
   #     results-json: ${{ toJSON(needs) }}
-  #     image-ref: ${{ needs.build.outputs.image-ref }}
+  #     image-ref: ${{ needs.build.outputs.image_ref }}
   #   secrets: inherit
