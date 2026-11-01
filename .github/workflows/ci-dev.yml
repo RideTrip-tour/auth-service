@@ -31,7 +31,7 @@ jobs:
   build:
     needs: [ruff, tests, mypy, alembic_python_check]
     if: github.event_name == 'push'
-    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@7fd360bbf4ae4cb41e36bc8b5ea44e1b5d7ad697
+    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@68e5d7c76800634e7ce9da738a7c3cf919735926
     with:
       namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
