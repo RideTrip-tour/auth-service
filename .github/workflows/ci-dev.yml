@@ -24,7 +24,7 @@ jobs:
       coverage-min: 90
 
   build:
-    needs: [ruff, tests]
+    needs: [ruff, tests, mypy]
     if: github.event_name == 'push'
     uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
     with:
