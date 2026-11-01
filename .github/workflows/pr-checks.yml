@@ -24,15 +24,15 @@ jobs:
   
   alembic_check:
     needs: [ruff, mypy, tests]
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@c8916915c1b46846f7a8acc311fa581893b6e655e
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@8916915c1b46846f7a8acc311fa581893b6e655e
   
-  notify:
-    needs: [ruff, tests, mypy, alembic_check]
-    if: ${{ always() && contains(needs.*.result, 'failure') }}
-    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@8916915c1b46846f7a8acc311fa581893b6e655e
-    with:
-      service-name: ${{ vars.AUTH_SERVICE_NAME || 'auth-service' }}
-      environment: DEV
-      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
-      results-json: ${{ toJSON(needs) }}
-    secrets: inherit
+  # notify:
+  #   needs: [ruff, tests, mypy, alembic_check]
+  #   if: ${{ always() && contains(needs.*.result, 'failure') }}
+  #   uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@8916915c1b46846f7a8acc311fa581893b6e655e
+  #   with:
+  #     service-name: ${{ vars.AUTH_SERVICE_NAME || 'auth-service' }}
+  #     environment: DEV
+  #     swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
+  #     results-json: ${{ toJSON(needs) }}
+  #   secrets: inherit
