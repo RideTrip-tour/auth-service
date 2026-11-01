@@ -10,28 +10,28 @@ permissions:
 
 jobs:
   ruff:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
   
   mypy:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       mypy-target: app
 
   tests:
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       coverage-source: app
       coverage-min: 90
 
   alembic_python_check:
     needs: [ruff, mypy, tests]
-    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-alembic-check.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
   
 
   build:
     needs: [ruff, tests, mypy, alembic_python_check]
     if: github.event_name == 'push'
-    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
@@ -40,7 +40,7 @@ jobs:
 
   alembic_check:
     needs: build
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-alembic-check.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-alembic-check.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
       image-ref: ${{ needs.build.outputs.image_ref }}
@@ -51,7 +51,7 @@ jobs:
 
   migrate:
     needs: [build, alembic_check]
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-migrate.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-migrate.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
       image-ref: ${{ needs.build.outputs.image_ref }}
@@ -62,7 +62,7 @@ jobs:
 
   deploy:
     needs: [build, migrate]
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       image-ref: ${{ needs.build.outputs.image_ref }}
       swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
@@ -71,7 +71,7 @@ jobs:
 
   healthcheck:
     needs: deploy
-    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
       app-name: ${{ vars.APP_NAME || 'auth' }}
@@ -82,7 +82,7 @@ jobs:
   notify:
     needs: [ruff, tests, mypy, build, alembic_check, migrate, deploy, healthcheck]
     if: ${{ always() && (github.event_name == 'push' || contains(needs.*.result, 'failure')) }}
-    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@a5bb1ec4cf424e22498fe6e38204f405d7e1012c
+    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@459092d0e7e442393233d10b61da1e9c5a2a6a19
     with:
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
       environment: DEV
