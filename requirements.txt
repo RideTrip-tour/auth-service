@@ -83,9 +83,9 @@ idna==3.15
     #   anyio
     #   email-validator
     #   httpx
-internal-client @ git+https://github.com/RideTrip-tour/internal_client.git@2f8bb3e9cf146e318f2a01e09fc544e4228f08bf
+internal-client @ git+https://github.com/RideTrip-tour/internal_client.git@02beab80fa79eb6533f2be4f822e455b9f996cfe
     # via -r requirements.in
-internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
+internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@25423ac7697f70b3f3d08872f79b2a723f407b36
     # via -r requirements.in
 jinja2==3.1.6
     # via fastapi-mail

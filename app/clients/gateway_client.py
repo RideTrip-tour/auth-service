@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from internal-client import InternalClient
+from internal_client import InternalClient
 from internal_middleware.context import request_id_var
 
 from app.services.jwt import get_strategy
