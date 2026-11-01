@@ -8,32 +8,27 @@ on:
       - main
 
 jobs:
-  lint_test:
-    runs-on: ubuntu-latest
+  ruff:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+  
+  mypy:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    with:
+      mypy-target: app
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements.test.txt
-          python -m pip install pytest pytest-asyncio ruff
-
-      - name: Lint (ruff)
-        run: ruff check --select F,E9 .
-
-      - name: Tests
-        run: |
-          pytest \
-            --cov=app \
-            --cov-report=term-missing \
-            --cov-report=xml \
-            --cov-fail-under=90
+  tests:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    with:
+      coverage-source: app
+      coverage-min: 90
+  
+  notify:
+    needs: [ruff, tests, mypy]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@c5384ac2be0894e41b76dcf103d9f5ef79b32f44
+    with:
+      service-name: ${{ vars.AUTH_SERVICE_NAME || 'auth-service' }}
+      environment: DEV
+      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'apps_auth-service' }}
+      results-json: ${{ toJSON(needs) }}
+    secrets: inherit

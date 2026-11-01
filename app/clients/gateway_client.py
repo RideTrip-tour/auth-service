@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from initial_client import InitialClient
+from internal_client import InternalClient
 from internal_middleware.context import request_id_var
 
 from app.services.jwt import get_strategy
@@ -10,7 +10,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-class GatewayClient(InitialClient):
+class GatewayClient(InternalClient):
     def __init__(self):
         super().__init__(
             base_url=settings.gateway_url,
