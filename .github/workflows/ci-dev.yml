@@ -31,7 +31,7 @@ jobs:
   build:
     needs: [ruff, tests, mypy, alembic_python_check]
     if: github.event_name == 'push'
-    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@0a46024b80048fa9f388a674482acf9c39c9532d
+    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@50072c22869e7a17bace32f2cfa9badf42e1867e
     with:
       namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
       service-name: ${{ vars.SERVICE_AUTH_NAME || 'auth-service' }}
@@ -46,12 +46,9 @@ jobs:
         env:
           IMAGE_REF: ${{ needs.build.outputs.image-ref }}
         run: |
+          set -euo pipefail
           echo "Workflow output: $IMAGE_REF"
-
-          if [[ -z "$IMAGE_REF" ]]; then
-            echo "::error::Reusable workflow returned empty image-ref"
-            exit 1
-          fi
+          test -n "$IMAGE_REF"
 
   alembic_check:
     needs: build
