@@ -135,8 +135,10 @@ def user():
     return SimpleNamespace(
         id=123,
         email="test@example.com",
+        hashed_password="old-hash",
+        is_active=False,
         deleted_at=None,
-        soft_delete=AsyncMock(),
+        soft_delete=MagicMock(),
     )
 
 

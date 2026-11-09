@@ -1,6 +1,7 @@
 import logging
 import secrets
-from datetime import datetime, timedelta
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
 from textwrap import dedent
 from typing import Annotated
 from urllib.parse import urlencode
@@ -560,6 +561,39 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
 
+    async def _update_user(
+        self,
+        user: User,
+        values: dict,
+        fields: Iterable[str],
+    ) -> User | None:
+        session = getattr(self.user_db, "session", None)
+        user_table = getattr(self.user_db, "user_table", None)
+
+        if session is None or user_table is None:
+            raise RuntimeError("Atomic user update requires SQLAlchemy user DB")
+
+        try:
+            query = sqlalchemy_update(user_table).where(user_table.id == user.id)
+
+            for field in fields:
+                query = query.where(getattr(user_table, field) == getattr(user, field))
+
+            result = await session.execute(query.values(**values))
+
+            if result.rowcount != 1:
+                await session.rollback()
+                return None
+
+            await session.commit()
+            await session.refresh(user)
+
+            return user
+
+        except Exception:
+            await session.rollback()
+            raise
+
     async def change_password(
         self,
         user: User,
@@ -577,29 +611,131 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         await self.validate_password(new_password, user)
         new_hashed_password = self.password_helper.hash(new_password)
 
-        session = getattr(self.user_db, "session", None)
-        user_table = getattr(self.user_db, "user_table", None)
-        if session is None or user_table is None:
-            raise RuntimeError("Atomic password update requires SQLAlchemy user DB")
-
-        result = await session.execute(
-            sqlalchemy_update(user_table)
-            .where(user_table.id == user.id)
-            .where(user_table.hashed_password == user.hashed_password)
-            .values(hashed_password=new_hashed_password)
+        user = await self._update_user(
+            user,
+            {"hashed_password": new_hashed_password},
+            ("hashed_password",),
         )
-        if result.rowcount != 1:
-            await session.rollback()
+        if user is None:
             return None
 
-        await session.commit()
-        await session.refresh(user)
         await self.on_after_update(
             user,
             {"hashed_password": new_hashed_password},
             request,
         )
         return user
+
+    async def reset_password(
+        self, token: str, password: str, request: Request | None = None
+    ) -> models.UP:
+        try:
+            data = decode_jwt(
+                token,
+                self.reset_password_token_secret,
+                [self.reset_password_token_audience],
+            )
+        except jwt.PyJWTError:
+            raise exceptions.InvalidResetPasswordToken()
+
+        try:
+            user_id = data["sub"]
+            password_fingerprint = data["password_fgpt"]
+        except KeyError:
+            raise exceptions.InvalidResetPasswordToken()
+
+        try:
+            parsed_id = self.parse_id(user_id)
+            user = await self.get(parsed_id)
+        except (exceptions.InvalidID, exceptions.UserNotExists):
+            raise exceptions.InvalidResetPasswordToken()
+
+        valid_password_fingerprint, _ = self.password_helper.verify_and_update(
+            user.hashed_password, password_fingerprint
+        )
+        if not valid_password_fingerprint:
+            raise exceptions.InvalidResetPasswordToken()
+        if user.deleted_at is None:
+            if not user.is_active:
+                raise exceptions.UserInactive()
+
+            updated_user = await self._update(user, {"password": password})
+
+            await self.on_after_reset_password(user, request)
+
+            return updated_user
+        return await self._restore_account(user, password, request)
+
+    async def _restore_account(
+        self,
+        user: User,
+        new_password: str,
+        request: Request | None = None,
+    ) -> User:
+        """Восстанавливает мягко удалённый аккаунт."""
+        restore_until = user.deleted_at + timedelta(
+            days=settings.account_restore_period_days
+        )
+        if datetime.now(UTC) >= restore_until:
+            await self.gateway_client.delete_profile_permanently(user)
+            await self.user_db.delete(user)
+            raise exceptions.InvalidResetPasswordToken()
+
+        await self.validate_password(new_password, user)
+        user = await self._update_user(
+            user,
+            {
+                "hashed_password": self.password_helper.hash(new_password),
+                "is_active": True,
+                "deleted_at": None,
+            },
+            ("hashed_password", "deleted_at", "is_active"),
+        )
+        if user is None:
+            return None
+        await self.gateway_client.restore_profile(user)
+        await self.on_after_account_restore(user, request)
+        return user
+
+    async def on_after_account_restore(
+        self,
+        user: models.UP,
+        request: Request | None = None,
+    ) -> None:
+
+        await send_email(
+            user.email,
+            "Аккаунт успешно восстановлен",
+            dedent(
+                f"""
+                Здравствуйте!
+
+                Ваш аккаунт в сервисе «3шагадо» успешно восстановлен.
+
+                Теперь вы снова можете пользоваться своим аккаунтом.
+
+                Если восстановление выполнили вы - никаких дополнительных действий не требуется.
+
+                Если вы не восстанавливали аккаунт, рекомендуем:
+                • изменить пароль;
+                • проверить безопасность вашей электронной почты;
+                • обратиться в нашу службу поддержки.
+                Если у вас возникли вопросы, напишите нам: {settings.support_email}
+
+                Команда «3шагадо»
+                """
+            ).strip(),
+            html=False,
+        )
+
+        logger.info("Пользователь %s восстановил аккаунт.", user.id)
+
+        await audit_service.log_event(
+            audit_service.AuditEventType.CHANGE_COMPLETED,
+            request=request,
+            user_id=user.id,
+            details={"change_type": "account_restore"},
+        )
 
     async def on_after_reset_password(
         self, user: models.UP, request: Request | None = None
@@ -698,7 +834,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def _send_account_deletion_email(self, user: User) -> None:
         if user.deleted_at is None:
             raise RuntimeError("Cannot send deletion email for an active account")
-        restore_until = user.deleted_at + timedelta(days=14)
+
+        restore_period = timedelta(days=settings.account_restore_period_days)
+        restore_until = user.deleted_at + restore_period
+        token = self._generate_password_recovery_token(
+            user,
+            lifetime_seconds=int(restore_period.total_seconds()),
+        )
+        link = self._build_password_recovery_link(token)
+
         await send_email(
             user.email,
             "Удаление аккаунта — 3шагадо",
@@ -708,6 +852,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 Ваш аккаунт в сервисе «3шагадо» был удалён.
                 Вы можете восстановить аккаунт до:
                 {restore_until.strftime("%d.%m.%Y %H:%M UTC")}
+                Для восстановления перейдите по ссылке:
+                {link}
+
                 Команда «3шагадо»
                 """
             ).strip(),

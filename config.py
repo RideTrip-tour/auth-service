@@ -72,6 +72,9 @@ class Settings(BaseSettings):
         validation_alias="REGISTRATION_TOKEN_ENCRYPTION_SECRET",
         default="",
     )
+    account_restore_period_days: int = Field(
+        validation_alias="ACCOUNT_RESTORE_PERIOD_DAYS", default=14
+    )
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 

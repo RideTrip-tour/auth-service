@@ -18,7 +18,8 @@ COPY --chown=appuser:appuser . .
 
 COPY entrypoint.sh /entrypoint.sh
 
-RUN chmod 755 /entrypoint.sh
+RUN python -c "from pathlib import Path; p = Path('/entrypoint.sh'); p.write_bytes(p.read_bytes().replace(b'\r\n', b'\n'))" \
+    && chmod 755 /entrypoint.sh
 
 USER appuser
 

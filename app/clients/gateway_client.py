@@ -22,15 +22,42 @@ class GatewayClient(InternalClient):
             timeout=10.0,
         )
 
-    async def create_profile(self, user, json: dict[str, Any] | None = None) -> None:
+    async def _send_profile_request(
+        self,
+        user,
+        path: str,
+        method: str = "POST",
+        json: dict[str, Any] | None = None,
+    ) -> None:
         user_context = await self._create_user_context(user)
 
         await self.request(
-            method="POST",
-            path="/api/profile/create",
+            method=method,
+            path=path,
             user_context=user_context,
             request_id=request_id_var.get(),
             json={} if json is None else json,
+        )
+
+    async def create_profile(self, user, json: dict[str, Any] | None = None) -> None:
+        await self._send_profile_request(
+            user=user,
+            path="/api/internal/profile/create",
+            json=json,
+        )
+
+    async def restore_profile(self, user, json: dict[str, Any] | None = None) -> None:
+        await self._send_profile_request(
+            user=user,
+            path="/api/internal/profile/me/restore",
+            json=json,
+        )
+
+    async def delete_profile_permanently(self, user) -> None:
+        await self._send_profile_request(
+            user,
+            path="/api/internal/profile/me/permanent",
+            method="DELETE",
         )
 
     async def _create_user_context(self, user) -> str:
