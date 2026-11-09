@@ -3,9 +3,8 @@ FROM python:3.12-alpine
 RUN apk add --no-cache \
     postgresql-client \
     redis \
-    git
-    
-RUN addgroup -S appgroup \
+    git \
+    && addgroup -S appgroup \
     && adduser -S -G appgroup appuser
 
 WORKDIR /app
@@ -18,8 +17,7 @@ COPY --chown=appuser:appuser . .
 
 COPY entrypoint.sh /entrypoint.sh
 
-RUN python -c "from pathlib import Path; p = Path('/entrypoint.sh'); p.write_bytes(p.read_bytes().replace(b'\r\n', b'\n'))" \
-    && chmod 755 /entrypoint.sh
+RUN chmod 755 /entrypoint.sh
 
 USER appuser
 

@@ -185,7 +185,7 @@ def fake_cache_manager():
 @pytest.fixture
 def gateway_client():
     client = GatewayClient()
-    yield client
+    return client
 
 
 @pytest.fixture
