@@ -30,12 +30,15 @@ class GatewayClient(InternalClient):
         json: dict[str, Any] | None = None,
     ) -> None:
         user_context = await self._create_user_context(user)
+        request_id = request_id_var.get()
+        if request_id is None:
+            raise ValueError("Request ID is required")
 
         await self.request(
             method=method,
             path=path,
             user_context=user_context,
-            request_id=request_id_var.get(),
+            request_id=request_id,
             json={} if json is None else json,
         )
 

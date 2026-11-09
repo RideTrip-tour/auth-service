@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from internal_middleware import request_id_var
 
 from app.clients.gateway_client import GatewayClient
 from app.db.models import User
@@ -213,3 +214,11 @@ def refresh_token_db():
     session = AsyncMock()
     session.add = MagicMock()
     return SQLAlchemyRefreshTokenDatabase(session), session
+
+
+@pytest.fixture
+def request_id():
+    value = "test-request-id"
+    token = request_id_var.set(value)
+    yield value
+    request_id_var.reset(token)

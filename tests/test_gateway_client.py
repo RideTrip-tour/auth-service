@@ -30,7 +30,7 @@ def test_get_headers(gateway_client):
 
 
 @pytest.mark.asyncio
-async def test_create_profile(gateway_client, monkeypatch):
+async def test_create_profile(gateway_client, monkeypatch, request_id):
     user = MagicMock()
     user_context = "user-context"
 
@@ -53,7 +53,7 @@ async def test_create_profile(gateway_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_restore_profile(gateway_client, monkeypatch):
+async def test_restore_profile(gateway_client, monkeypatch, request_id):
     user = MagicMock()
     user_context = "user-context"
 
@@ -76,7 +76,7 @@ async def test_restore_profile(gateway_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_delete_profile_permanently(gateway_client, monkeypatch):
+async def test_delete_profile_permanently(gateway_client, monkeypatch, request_id):
     user = MagicMock()
     user_context = "user-context"
 

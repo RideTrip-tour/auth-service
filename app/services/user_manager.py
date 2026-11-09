@@ -107,7 +107,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         return f"{seconds} секунд"
 
-    def _generate_password_recovery_token(self, user: models.UP) -> str:
+    def _generate_password_recovery_token(
+        self,
+        user: models.UP,
+        lifetime_seconds: int | None = None,
+    ) -> str:
         return generate_jwt(
             {
                 "sub": str(user.id),
@@ -115,7 +119,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 "aud": self.reset_password_token_audience,
             },
             self.reset_password_token_secret,
-            self.reset_password_token_lifetime_seconds,
+            lifetime_seconds or self.reset_password_token_lifetime_seconds,
         )
 
     async def on_after_register(self, user: User, request: Request | None = None):
@@ -611,24 +615,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         await self.validate_password(new_password, user)
         new_hashed_password = self.password_helper.hash(new_password)
 
-        user = await self._update_user(
+        updated_user = await self._update_user(
             user,
             {"hashed_password": new_hashed_password},
             ("hashed_password",),
         )
-        if user is None:
+        if updated_user is None:
             return None
 
         await self.on_after_update(
-            user,
+            updated_user,
             {"hashed_password": new_hashed_password},
             request,
         )
-        return user
+        return updated_user
 
     async def reset_password(
         self, token: str, password: str, request: Request | None = None
-    ) -> models.UP:
+    ) -> User:
         try:
             data = decode_jwt(
                 token,
@@ -673,7 +677,10 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Request | None = None,
     ) -> User:
         """Восстанавливает мягко удалённый аккаунт."""
-        restore_until = user.deleted_at + timedelta(
+        deleted_at = user.deleted_at
+        if deleted_at is None:
+            raise exceptions.InvalidResetPasswordToken()
+        restore_until = deleted_at + timedelta(
             days=settings.account_restore_period_days
         )
         if datetime.now(UTC) >= restore_until:
@@ -682,7 +689,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise exceptions.InvalidResetPasswordToken()
 
         await self.validate_password(new_password, user)
-        user = await self._update_user(
+        updated_user = await self._update_user(
             user,
             {
                 "hashed_password": self.password_helper.hash(new_password),
@@ -691,11 +698,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             },
             ("hashed_password", "deleted_at", "is_active"),
         )
-        if user is None:
-            return None
+        if updated_user is None:
+            raise exceptions.UserNotExists()
         await self.gateway_client.restore_profile(user)
         await self.on_after_account_restore(user, request)
-        return user
+        return updated_user
 
     async def on_after_account_restore(
         self,
