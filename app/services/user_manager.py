@@ -665,10 +665,24 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
             updated_user = await self._update(user, {"password": password})
 
-            await self.on_after_reset_password(user, request)
+            await self.on_after_reset_password(updated_user, request)
 
             return updated_user
         return await self._restore_account(user, password, request)
+
+    def _is_restore_period_expired(self, user: User) -> bool:
+        deleted_at = user.deleted_at
+        if deleted_at is None:
+            raise exceptions.InvalidResetPasswordToken()
+        restore_until = deleted_at + timedelta(
+            days=settings.account_restore_period_days
+        )
+        return datetime.now(UTC) >= restore_until
+
+    async def _delete_expired_account(self, user: User) -> None:
+        await self.gateway_client.delete_profile_permanently(user)
+        await self.user_db.delete(user)
+        raise exceptions.InvalidResetPasswordToken()
 
     async def _restore_account(
         self,
@@ -677,17 +691,14 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Request | None = None,
     ) -> User:
         """Восстанавливает мягко удалённый аккаунт."""
-        deleted_at = user.deleted_at
-        if deleted_at is None:
-            raise exceptions.InvalidResetPasswordToken()
-        restore_until = deleted_at + timedelta(
-            days=settings.account_restore_period_days
-        )
-        if datetime.now(UTC) >= restore_until:
-            await self.gateway_client.delete_profile_permanently(user)
-            await self.user_db.delete(user)
-            raise exceptions.InvalidResetPasswordToken()
+        if self._is_restore_period_expired(user):
+            await self._delete_expired_account(user)
 
+        original_user_state = {
+            "hashed_password": user.hashed_password,
+            "is_active": user.is_active,
+            "deleted_at": user.deleted_at,
+        }
         await self.validate_password(new_password, user)
         updated_user = await self._update_user(
             user,
@@ -700,8 +711,22 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         if updated_user is None:
             raise exceptions.UserNotExists()
-        await self.gateway_client.restore_profile(user)
-        await self.on_after_account_restore(user, request)
+        try:
+            await self.gateway_client.restore_profile(updated_user)
+        except Exception as exc:
+            compensated_user = await self._update_user(
+                updated_user,
+                original_user_state,
+                ("hashed_password", "deleted_at", "is_active"),
+            )
+            if compensated_user is None:
+                logger.error(
+                    "Account restoration compensation failed: "
+                    "user state was changed concurrently. user_id=%s",
+                    user.id,
+                )
+            raise exceptions.UserNotExists() from exc
+        await self.on_after_account_restore(updated_user, request)
         return updated_user
 
     async def on_after_account_restore(

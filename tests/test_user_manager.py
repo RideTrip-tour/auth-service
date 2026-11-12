@@ -216,7 +216,7 @@ async def test_reset_password_success(user_manager, user):
         )
 
     assert result is updated_user
-    callback.assert_awaited_once_with(user, None)
+    callback.assert_awaited_once_with(updated_user, None)
 
 
 @pytest.mark.asyncio
@@ -355,6 +355,87 @@ async def test_restore_account_expired(user_manager, user):
     delete_profile_mock.assert_awaited_once_with(user)
     delete_user_mock.assert_awaited_once_with(user)
     validate_password_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_restore_account_profile_error_compensates_auth(
+    user_manager,
+    user,
+):
+    updated_user = MagicMock()
+    compensated_user = MagicMock()
+    original_deleted_at = datetime.now(UTC) - timedelta(days=1)
+
+    user.hashed_password = "old-hash"
+    user.is_active = False
+    user.deleted_at = original_deleted_at
+
+    with (
+        patch.object(
+            user_manager,
+            "_is_restore_period_expired",
+            return_value=False,
+        ),
+        patch.object(
+            user_manager,
+            "validate_password",
+            new_callable=AsyncMock,
+        ),
+        patch.object(
+            user_manager.password_helper,
+            "hash",
+            return_value="new-hash",
+        ),
+        patch.object(
+            user_manager,
+            "_update_user",
+            new_callable=AsyncMock,
+            side_effect=[updated_user, compensated_user],
+        ) as update_mock,
+        patch.object(
+            user_manager.gateway_client,
+            "restore_profile",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Profile service error"),
+        ) as restore_profile_mock,
+        patch.object(
+            user_manager,
+            "on_after_account_restore",
+            new_callable=AsyncMock,
+        ) as callback_mock,
+        pytest.raises(exceptions.UserNotExists) as exc_info,
+    ):
+        await user_manager._restore_account(
+            user,
+            "NewPassword123!",
+        )
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    assert update_mock.await_count == 2
+
+    update_mock.assert_any_await(
+        user,
+        {
+            "hashed_password": "new-hash",
+            "is_active": True,
+            "deleted_at": None,
+        },
+        ("hashed_password", "deleted_at", "is_active"),
+    )
+
+    update_mock.assert_any_await(
+        updated_user,
+        {
+            "hashed_password": "old-hash",
+            "is_active": False,
+            "deleted_at": original_deleted_at,
+        },
+        ("hashed_password", "deleted_at", "is_active"),
+    )
+
+    restore_profile_mock.assert_awaited_once_with(updated_user)
+    callback_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
