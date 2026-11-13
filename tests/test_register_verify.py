@@ -356,22 +356,22 @@ async def test_verify_change_email_success(client, mock_user_db):
     assert mock_user_db.update_call_data == {"email": new_email}
     assert send_email_mock.await_count == 2
     old_email_call, new_email_call = send_email_mock.await_args_list
-
-    assert old_email_call.args[0] == current_email
-    assert old_email_call.args[1] == "Email аккаунта изменен"
-    assert "Предыдущий адрес: c***@example.com" in old_email_call.args[2]
-    assert "Новый адрес: n***@example.com" in old_email_call.args[2]
-    assert (
-        "Сменить пароль: https://trip.com/reset-password?token="
-        in old_email_call.args[2]
-    )
-
-    assert new_email_call.args[0] == new_email
-    assert new_email_call.args[1] == "Email аккаунта изменен"
-    assert current_email not in new_email_call.args[2]
-    assert "Предыдущий адрес" not in new_email_call.args[2]
-    assert "Сменить пароль" not in new_email_call.args[2]
-    assert "token=" not in new_email_call.args[2]
+    recipient, subject, body = old_email_call.args
+    body_text = str(body)
+    print(body_text)
+    assert recipient == current_email
+    assert subject == "Email аккаунта изменен"
+    assert "Предыдущий адрес: c***@example.com" in body_text
+    assert "Новый адрес: n***@example.com" in body_text
+    assert "Сменить пароль: https://trip.com/reset-password?token=" in body_text
+    recipient, subject, body = new_email_call.args
+    body_text = str(body)
+    assert recipient == new_email
+    assert subject == "Email аккаунта изменен"
+    assert current_email not in body_text
+    assert "Предыдущий адрес" not in body_text
+    assert "Сменить пароль" not in body_text
+    assert "token=" not in body_text
 
 
 @pytest.mark.asyncio

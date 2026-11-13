@@ -1,8 +1,9 @@
 import logging
 import secrets
-from datetime import datetime, timedelta
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
 from textwrap import dedent
-from typing import Annotated
+from typing import Annotated, cast
 from urllib.parse import urlencode
 
 import jwt
@@ -13,7 +14,6 @@ from fastapi_users import (
     exceptions,
     models,
 )
-from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter
@@ -21,10 +21,12 @@ from sqlalchemy import update as sqlalchemy_update
 
 import app.services.audit as audit_service
 from app.clients.gateway_client import GatewayClient
-from app.db.database import get_user_db
+from app.db.database import UserDatabaseDep
 from app.db.email_change_request_database import SQLAlchemyEmailChangeRequestDatabase
 from app.db.models import User
-from app.dependencies.cache import get_cache_manager
+from app.db.user_db import UserDatabase
+from app.dependencies.cache import CacheManagerDep
+from app.exceptions.users import UserUpdateFailed
 from app.schemas.reset_pass import VerifyOperation, VerifyResult
 from app.services.cache import CacheManager
 from app.services.email import send_email
@@ -58,7 +60,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = "fastapi-users:change_email"
 
-    def __init__(self, user_db: SQLAlchemyUserDatabase, cache_manager: CacheManager):
+    def __init__(self, user_db: UserDatabase, cache_manager: CacheManager):
         super().__init__(user_db)
         self.cache_manager = cache_manager
         self.gateway_client = GatewayClient()
@@ -106,7 +108,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         return f"{seconds} секунд"
 
-    def _generate_password_recovery_token(self, user: models.UP) -> str:
+    def _generate_password_recovery_token(
+        self,
+        user: models.UP,
+        lifetime_seconds: int | None = None,
+    ) -> str:
         return generate_jwt(
             {
                 "sub": str(user.id),
@@ -114,7 +120,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 "aud": self.reset_password_token_audience,
             },
             self.reset_password_token_secret,
-            self.reset_password_token_lifetime_seconds,
+            lifetime_seconds or self.reset_password_token_lifetime_seconds,
         )
 
     async def on_after_register(self, user: User, request: Request | None = None):
@@ -134,27 +140,34 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         )
         await send_email(
             user.email,
-            "Восстановление доступа",
+            "Восстановление доступа в «3шагадо» 🏔️",
             dedent(
                 f"""
-                Здравствуйте!
+                <html lang="ru">
+                    <body>
+                        <p>Привет!</p>
 
-                Вы запросили восстановление доступа к аккаунту в сервисе «3шагадо».
+                        <p>
+                            Вы запросили восстановление доступа к аккаунту
+                            в сервисе «3шагадо».<br>
+                            Чтобы установить новый пароль, перейдите по ссылке:<br>
+                            <a href="{recovery_link}">Восстановить доступ</a><br>
+                            Ссылка действует {recovery_link_lifetime}.<br>
+                            <br>
+                            Если вы не запрашивали восстановление доступа,
+                            просто проигнорируйте это письмо.
+                            <br>
+                            <br>
+                            Если у вас возникли вопросы, напишите нам:
+                            <a href="mailto:{settings.support_email}">{settings.support_email}</a>
+                        </p>
 
-                Чтобы установить новый пароль, перейдите по ссылке:
-
-                {recovery_link}
-
-                Ссылка действует {recovery_link_lifetime}.
-
-                Если вы не запрашивали восстановление доступа, просто проигнорируйте это письмо.
-
-                Если у вас возникли вопросы, напишите нам: {settings.support_email}
-
-                — Команда «3шагадо»
+                        <p>Команда «3шагадо»</p>
+                    </body>
+                </html>
                 """
             ).strip(),
-            html=False,
+            html=True,
         )
         logger.info(
             "Пользователь %s запросил сброс пароля.",
@@ -482,55 +495,73 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Email аккаунта изменен",
             dedent(
                 f"""
-                Здравствуйте!
+                <html lang="ru">
+                    <body>
+                        <p>Привет!</p>
 
-                Адрес электронной почты, привязанный к вашему аккаунту в сервисе «3шагадо», был успешно изменён.
-
-                Дата и время изменения: {changed_at}
-
-                Предыдущий адрес: {self._mask_email(current_email)}
-                Новый адрес: {self._mask_email(new_email)}
-
-                Если это были вы — никаких дополнительных действий не требуется.
-
-                Если вы не меняли адрес электронной почты, рекомендуем как можно скорее сменить пароль от аккаунта и обратиться в поддержку для проверки безопасности аккаунта.
-
-                Сменить пароль: {password_recovery_link}
-
-                Ссылка для смены пароля действует {password_recovery_link_lifetime}.
-
-                Если у вас остались вопросы, напишите нам:
-
-                {settings.support_email}
-
-                Мы поможем проверить безопасность аккаунта и восстановить доступ при необходимости.
-
-                Команда «3шагадо»
+                        <p>
+                            Адрес электронной почты, привязанный к вашему аккаунту
+                            в сервисе «3шагадо», был успешно изменён.<br>
+                            <br>
+                            Дата и время изменения: {changed_at}<br>
+                            Предыдущий адрес: {self._mask_email(current_email)}<br>
+                            Новый адрес: {self._mask_email(new_email)}<br>
+                            <br>
+                            Если это были вы — никаких дополнительных действий не требуется.<br>
+                            <br>
+                            Если вы не меняли адрес электронной почты, рекомендуем
+                            как можно скорее сменить пароль от аккаунта и обратиться
+                            в поддержку для проверки безопасности аккаунта.<br>
+                            <br>
+                            <a href="{password_recovery_link}">Сменить пароль: {password_recovery_link}</a><br>
+                            <br>
+                            Ссылка для смены пароля действует
+                            {password_recovery_link_lifetime}.<br>
+                            <br>
+                            Если у вас остались вопросы, напишите нам:<br>
+                            <a href="mailto:{settings.support_email}">{settings.support_email}</a><br>
+                            <br>
+                            Мы поможем проверить безопасность аккаунта и восстановить
+                            доступ при необходимости.<br>
+                            <br>
+                            <br>
+                            Команда «3шагадо»
+                        </p>
+                    </body>
+                </html>
                 """
             ).strip(),
-            html=False,
+            html=True,
         )
         await send_email(
             new_email,
             "Email аккаунта изменен",
             dedent(
                 f"""
-                Здравствуйте!
+                <html lang="ru">
+                    <body>
+                        <p>Привет!</p>
 
-                Этот адрес электронной почты был указан как новый адрес для аккаунта в сервисе «3шагадо».
-
-                Дата и время изменения: {changed_at}
-
-                Если это были вы — никаких дополнительных действий не требуется.
-
-                Если вы не запрашивали это изменение, напишите нам:
-
-                {settings.support_email}
-
-                Команда «3шагадо»
+                        <p>
+                            Этот адрес электронной почты был указан как новый адрес
+                            для аккаунта в сервисе «3шагадо».<br>
+                            <br>
+                            Дата и время изменения: {changed_at}<br>
+                            <br>
+                            Если это были вы — никаких дополнительных действий
+                            не требуется.<br>
+                            <br>
+                            Если вы не запрашивали это изменение, напишите нам:<br>
+                            <a href="mailto:{settings.support_email}">{settings.support_email}</a><br>
+                            <br>
+                            <br>
+                            Команда «3шагадо»
+                        </p>
+                    </body>
+                </html>
                 """
             ).strip(),
-            html=False,
+            html=True,
         )
         logger.info(
             "Пользователь %s сменил email с %s на %s.",
@@ -560,6 +591,39 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
 
+    async def _update_user(
+        self,
+        user: User,
+        values: dict,
+        fields: Iterable[str],
+    ) -> User | None:
+        session = getattr(self.user_db, "session", None)
+        user_table = getattr(self.user_db, "user_table", None)
+
+        if session is None or user_table is None:
+            raise RuntimeError("Atomic user update requires SQLAlchemy user DB")
+
+        try:
+            query = sqlalchemy_update(user_table).where(user_table.id == user.id)
+
+            for field in fields:
+                query = query.where(getattr(user_table, field) == getattr(user, field))
+
+            result = await session.execute(query.values(**values))
+
+            if result.rowcount != 1:
+                await session.rollback()
+                return None
+
+            await session.commit()
+            await session.refresh(user)
+
+            return user
+
+        except Exception:
+            await session.rollback()
+            raise
+
     async def change_password(
         self,
         user: User,
@@ -577,29 +641,149 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         await self.validate_password(new_password, user)
         new_hashed_password = self.password_helper.hash(new_password)
 
-        session = getattr(self.user_db, "session", None)
-        user_table = getattr(self.user_db, "user_table", None)
-        if session is None or user_table is None:
-            raise RuntimeError("Atomic password update requires SQLAlchemy user DB")
-
-        result = await session.execute(
-            sqlalchemy_update(user_table)
-            .where(user_table.id == user.id)
-            .where(user_table.hashed_password == user.hashed_password)
-            .values(hashed_password=new_hashed_password)
-        )
-        if result.rowcount != 1:
-            await session.rollback()
-            return None
-
-        await session.commit()
-        await session.refresh(user)
-        await self.on_after_update(
+        updated_user = await cast(
+            UserDatabase, self.user_db
+        ).compare_and_update_committed(
             user,
+            {"hashed_password": new_hashed_password},
+            ("hashed_password",),
+        )
+        if updated_user is None:
+            raise UserUpdateFailed()
+
+        await self.on_after_update(
+            updated_user,
             {"hashed_password": new_hashed_password},
             request,
         )
-        return user
+        return updated_user
+
+    async def reset_password(
+        self, token: str, password: str, request: Request | None = None
+    ) -> User:
+        try:
+            data = decode_jwt(
+                token,
+                self.reset_password_token_secret,
+                [self.reset_password_token_audience],
+            )
+        except jwt.PyJWTError:
+            raise exceptions.InvalidResetPasswordToken()
+
+        try:
+            user_id = data["sub"]
+            password_fingerprint = data["password_fgpt"]
+        except KeyError:
+            raise exceptions.InvalidResetPasswordToken()
+
+        try:
+            parsed_id = self.parse_id(user_id)
+            user = await self.get(parsed_id)
+        except (exceptions.InvalidID, exceptions.UserNotExists):
+            raise exceptions.InvalidResetPasswordToken()
+
+        valid_password_fingerprint, _ = self.password_helper.verify_and_update(
+            user.hashed_password, password_fingerprint
+        )
+        if not valid_password_fingerprint:
+            raise exceptions.InvalidResetPasswordToken()
+        if user.deleted_at is None:
+            if not user.is_active:
+                raise exceptions.UserInactive()
+
+            updated_user = await self._update(user, {"password": password})
+
+            await self.on_after_reset_password(updated_user, request)
+
+            return updated_user
+        return await self._restore_account(user, password, request)
+
+    def _is_restore_period_expired(self, user: User) -> bool:
+        deleted_at = user.deleted_at
+        if deleted_at is None:
+            raise exceptions.InvalidResetPasswordToken()
+        restore_until = deleted_at + timedelta(
+            days=settings.account_restore_period_days
+        )
+        return datetime.now(UTC) >= restore_until
+
+    async def _delete_expired_account(self, user: User) -> None:
+        await self.gateway_client.delete_profile_permanently(user)
+        await self.user_db.delete(user)
+        raise exceptions.InvalidResetPasswordToken()
+
+    async def _restore_account(
+        self,
+        user: User,
+        new_password: str,
+        request: Request | None = None,
+    ) -> User:
+        """Восстанавливает мягко удалённый аккаунт."""
+        if self._is_restore_period_expired(user):
+            await self._delete_expired_account(user)
+
+        await self.validate_password(new_password, user)
+        user_db = cast(UserDatabase, self.user_db)
+        try:
+            async with user_db.session.begin():
+                updated_user = await user_db.compare_and_update(
+                    user,
+                    {
+                        "hashed_password": self.password_helper.hash(new_password),
+                        "is_active": True,
+                        "deleted_at": None,
+                    },
+                    ("hashed_password", "deleted_at", "is_active"),
+                )
+                if updated_user is None:
+                    raise UserUpdateFailed()
+                await self.gateway_client.restore_profile(updated_user)
+        except Exception as exc:
+            raise UserUpdateFailed() from exc
+        await self.on_after_account_restore(updated_user, request)
+        return updated_user
+
+    async def on_after_account_restore(
+        self,
+        user: models.UP,
+        request: Request | None = None,
+    ) -> None:
+        await send_email(
+            user.email,
+            "Аккаунт успешно восстановлен",
+            dedent(
+                f"""
+                <html lang="ru">
+                    <body>
+                        <p> Привет!</p>
+                        <p>
+                            Ваш аккаунт в сервисе «3шагадо» успешно восстановлен.<br>
+                            Теперь вы снова можете пользоваться своим аккаунтом.<br>
+                            <br>
+                            Если восстановление выполнили вы — никаких дополнительных
+                            действий не требуется.<br>
+                            <br>
+                            Если вы не восстанавливали аккаунт, рекомендуем изменить пароль или
+                            обратиться в нашу службу поддержки.<br>
+                            <a href="mailto:{settings.support_email}">{settings.support_email}</a><br>
+                            <br>
+                            <br>
+                            Команда «3шагадо»
+                        </p>
+                    </body>
+                </html>
+                """
+            ).strip(),
+            html=True,
+        )
+        logger.info("Пользователь %s восстановил аккаунт.", user.id)
+
+        await audit_service.log_event(
+            audit_service.AuditEventType.CHANGE_COMPLETED,
+            request=request,
+            user_id=user.id,
+            details={"change_type": "account_restore"},
+        )
 
     async def on_after_reset_password(
         self, user: models.UP, request: Request | None = None
@@ -616,30 +800,31 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             "Пароль успешно изменен",
             dedent(
                 f"""
-                Здравствуйте!
-
-                Пароль от вашего аккаунта в сервисе «3шагадо» был успешно изменён.
-
-                Дата и время изменения: {changed_at}
-
-                Если это были вы — никаких дополнительных действий не требуется.
-
-                Если вы не меняли пароль, рекомендуем как можно скорее восстановить доступ к аккаунту и установить новый пароль:
-
-                Восстановить доступ: {recovery_link}
-
-                Ссылка для восстановления действует {recovery_link_lifetime}.
-
-                Также рекомендуем:
-                • проверить безопасность вашей электронной почты;
-                • завершить активные сессии на других устройствах в настройках аккаунта.
-
-                Если у вас возникли вопросы, напишите нам: {settings.support_email}
-
-                — Команда «3шагадо»
+                <html lang="ru">
+                    <body>
+                        <p>Привет!</p>
+                        <p>
+                            Пароль от вашего аккаунта в сервисе «3шагадо» был успешно изменён.<br>
+                            Дата и время изменения: {changed_at}<br>
+                            Если это были вы — никаких дополнительных действий не требуется.<br>
+                            <br>
+                            Если вы не меняли пароль, рекомендуем как можно скорее
+                            восстановить доступ к аккаунту и установить новый пароль:<br>
+                            <a href="{recovery_link}">Восстановить доступ</a><br>
+                            <br>
+                            Ссылка для восстановления действует {recovery_link_lifetime}.<br>
+                            <br>
+                            Если у вас возникли вопросы, напишите нам:<br>
+                            <a href="mailto:{settings.support_email}">{settings.support_email}</a><br>
+                            <br>
+                            <br>
+                            Команда «3шагадо»
+                        </p>
+                    </body>
+                </html>
                 """
             ).strip(),
-            html=False,
+            html=True,
         )
         logger.info("Пользователь %s обновил пароль.", user.id)
         await audit_service.log_event(
@@ -698,20 +883,39 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def _send_account_deletion_email(self, user: User) -> None:
         if user.deleted_at is None:
             raise RuntimeError("Cannot send deletion email for an active account")
-        restore_until = user.deleted_at + timedelta(days=14)
+
+        restore_period = timedelta(days=settings.account_restore_period_days)
+        restore_until = user.deleted_at + restore_period
+        token = self._generate_password_recovery_token(
+            user,
+            lifetime_seconds=int(restore_period.total_seconds()),
+        )
+        link = self._build_password_recovery_link(token)
+
         await send_email(
             user.email,
             "Удаление аккаунта — 3шагадо",
             dedent(
                 f"""
-                Здравствуйте!
-                Ваш аккаунт в сервисе «3шагадо» был удалён.
-                Вы можете восстановить аккаунт до:
-                {restore_until.strftime("%d.%m.%Y %H:%M UTC")}
-                Команда «3шагадо»
+                <html lang="ru">
+                    <body>
+                        <p>Привет!</p>
+                        <p>
+                            Ваш аккаунт в сервисе «3шагадо» был удалён.<br>
+                            <br>
+                            Вы можете восстановить аккаунт до:<br>
+                            <strong>{restore_until.strftime("%d.%m.%Y %H:%M UTC")}</strong><br>
+                            <br>
+                            Для восстановления перейдите по ссылке:<br>
+                            <a href="{link}">Восстановить аккаунт</a><br>
+                            <br>
+                            Команда «3шагадо»
+                        </p>
+                    </body>
+                </html>
                 """
             ).strip(),
-            html=False,
+            html=True,
         )
         logger.info(
             "Письмо об удалении аккаунта отправлено пользователю %s.",
@@ -720,8 +924,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
 
 async def get_user_manager(
-    user_db: SQLAlchemyUserDatabase = Depends(get_user_db),
-    cache_manager: CacheManager = Depends(get_cache_manager),
+    user_db: UserDatabaseDep,
+    cache_manager: CacheManagerDep,
 ):
     yield UserManager(user_db, cache_manager=cache_manager)
 
