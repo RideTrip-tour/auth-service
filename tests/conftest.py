@@ -222,3 +222,14 @@ def request_id():
     token = request_id_var.set(value)
     yield value
     request_id_var.reset(token)
+
+
+@pytest.fixture
+def transaction(user_manager):
+    transaction = MagicMock()
+    transaction.__aenter__ = AsyncMock()
+    transaction.__aexit__ = AsyncMock(return_value=False)
+
+    user_manager.user_db.session.begin = MagicMock(return_value=transaction)
+
+    return transaction

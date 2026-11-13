@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi_users import exceptions
 
+from app.exceptions.users import UserUpdateFailed
 from app.services.user_manager import UserManager
 
 
@@ -56,24 +57,26 @@ async def test_change_password_success(user_manager):
     user_manager.validate_password = AsyncMock()
     user_manager.on_after_update = AsyncMock()
 
-    session = AsyncMock()
-    session.execute.return_value.rowcount = 1
-
-    user_manager.user_db.session = session
+    user_manager.user_db.compare_and_update_committed = AsyncMock(return_value=user)
 
     result = await user_manager.change_password(
         user=user,
         current_password="old-password",
         new_password="new-password",
     )
+
     assert result is user
 
     user_manager.validate_password.assert_awaited_once_with(
         "new-password",
         user,
     )
-    session.commit.assert_awaited_once()
-    session.refresh.assert_awaited_once_with(user)
+
+    user_manager.user_db.compare_and_update_committed.assert_awaited_once_with(
+        user,
+        {"hashed_password": "new-hash"},
+        ("hashed_password",),
+    )
 
     user_manager.on_after_update.assert_awaited_once_with(
         user,
@@ -155,7 +158,7 @@ async def test_send_account_deletion_email(user_manager, user):
     assert args[1] == "Удаление аккаунта — 3шагадо"
     assert "28.10.2026 10:00 UTC" in args[2]
     assert "test-token" in args[2]
-    assert kwargs["html"] is False
+    assert kwargs["html"] is True
 
 
 @pytest.mark.asyncio
@@ -257,7 +260,7 @@ async def test_reset_password_restore_account(user_manager, user):
 
 
 @pytest.mark.asyncio
-async def test_restore_account_success(user_manager, user):
+async def test_restore_account_success(user_manager, user, transaction):
     user.deleted_at = datetime.now(UTC) - timedelta(days=1)
     user.hashed_password = "old-hash"
     user.is_active = False
@@ -278,10 +281,11 @@ async def test_restore_account_success(user_manager, user):
             return_value="new-hash",
         ) as hash_mock,
         patch.object(
-            user_manager,
-            "_update_user",
+            user_manager.user_db,
+            "compare_and_update",
             new_callable=AsyncMock,
             return_value=user,
+            create=True,
         ) as update_mock,
         patch.object(
             user_manager.gateway_client,
@@ -319,6 +323,9 @@ async def test_restore_account_success(user_manager, user):
 
     restore_profile_mock.assert_awaited_once_with(user)
     callback_mock.assert_awaited_once_with(user, None)
+
+    transaction.__aenter__.assert_awaited_once()
+    transaction.__aexit__.assert_awaited_once_with(None, None, None)
 
 
 @pytest.mark.asyncio
@@ -358,17 +365,16 @@ async def test_restore_account_expired(user_manager, user):
 
 
 @pytest.mark.asyncio
-async def test_restore_account_profile_error_compensates_auth(
+async def test_restore_account_profile_error_rollbacks_auth(
     user_manager,
     user,
+    transaction,
 ):
     updated_user = MagicMock()
-    compensated_user = MagicMock()
-    original_deleted_at = datetime.now(UTC) - timedelta(days=1)
 
     user.hashed_password = "old-hash"
     user.is_active = False
-    user.deleted_at = original_deleted_at
+    user.deleted_at = datetime.now(UTC) - timedelta(days=1)
 
     with (
         patch.object(
@@ -387,10 +393,11 @@ async def test_restore_account_profile_error_compensates_auth(
             return_value="new-hash",
         ),
         patch.object(
-            user_manager,
-            "_update_user",
+            user_manager.user_db,
+            "compare_and_update",
             new_callable=AsyncMock,
-            side_effect=[updated_user, compensated_user],
+            return_value=updated_user,
+            create=True,
         ) as update_mock,
         patch.object(
             user_manager.gateway_client,
@@ -403,7 +410,7 @@ async def test_restore_account_profile_error_compensates_auth(
             "on_after_account_restore",
             new_callable=AsyncMock,
         ) as callback_mock,
-        pytest.raises(exceptions.UserNotExists) as exc_info,
+        pytest.raises(UserUpdateFailed) as exc_info,
     ):
         await user_manager._restore_account(
             user,
@@ -412,9 +419,7 @@ async def test_restore_account_profile_error_compensates_auth(
 
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
-    assert update_mock.await_count == 2
-
-    update_mock.assert_any_await(
+    update_mock.assert_awaited_once_with(
         user,
         {
             "hashed_password": "new-hash",
@@ -424,18 +429,17 @@ async def test_restore_account_profile_error_compensates_auth(
         ("hashed_password", "deleted_at", "is_active"),
     )
 
-    update_mock.assert_any_await(
-        updated_user,
-        {
-            "hashed_password": "old-hash",
-            "is_active": False,
-            "deleted_at": original_deleted_at,
-        },
-        ("hashed_password", "deleted_at", "is_active"),
-    )
-
     restore_profile_mock.assert_awaited_once_with(updated_user)
     callback_mock.assert_not_awaited()
+
+    transaction.__aenter__.assert_awaited_once()
+    transaction.__aexit__.assert_awaited_once()
+
+    assert transaction.__aexit__.await_args.args[0] is RuntimeError
+    assert isinstance(
+        transaction.__aexit__.await_args.args[1],
+        RuntimeError,
+    )
 
 
 @pytest.mark.asyncio
@@ -454,4 +458,4 @@ async def test_on_after_account_restore(user_manager, user):
     assert args[1] == "Аккаунт успешно восстановлен"
     assert "Ваш аккаунт в сервисе «3шагадо» успешно восстановлен." in args[2]
     assert "изменить пароль" in args[2]
-    assert kwargs["html"] is False
+    assert kwargs["html"] is True

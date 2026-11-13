@@ -40,7 +40,7 @@ async def test_create_profile(gateway_client, monkeypatch, request_id):
         assert headers["X-User-Context"] == user_context
 
         request = httpx.Request(method, str(url))
-        return httpx.Response(200, request=request)
+        return httpx.Response(201, request=request)
 
     monkeypatch.setattr(gateway_client.client, "request", fake_request)
     monkeypatch.setattr(
@@ -58,7 +58,7 @@ async def test_restore_profile(gateway_client, monkeypatch, request_id):
     user_context = "user-context"
 
     create_context_mock = AsyncMock(return_value=user_context)
-    request_mock = AsyncMock()
+    request_mock = AsyncMock(return_value=MagicMock(status_code=204))
 
     monkeypatch.setattr(gateway_client, "_create_user_context", create_context_mock)
     monkeypatch.setattr(gateway_client, "request", request_mock)
