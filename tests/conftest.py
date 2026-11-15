@@ -14,6 +14,7 @@ from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.dependencies.cache import get_cache_manager
 from app.routes.reset_pass import get_reset_password_router
+from app.tasks import account_tasks
 from tests.fakes.cache import FakeCacheManager
 
 # Делаем так, чтобы в тестах корректно импортировался пакет `app` и `config`
@@ -233,3 +234,20 @@ def transaction(user_manager):
     user_manager.user_db.session.begin = MagicMock(return_value=transaction)
 
     return transaction
+
+
+@pytest.fixture
+def celery_session(monkeypatch):
+    session = MagicMock()
+
+    session_context = MagicMock()
+    session_context.__aenter__ = AsyncMock(return_value=session)
+    session_context.__aexit__ = AsyncMock(return_value=False)
+
+    monkeypatch.setattr(
+        account_tasks,
+        "AsyncSessionLocal",
+        MagicMock(return_value=session_context),
+    )
+
+    return session

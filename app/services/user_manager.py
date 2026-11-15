@@ -60,7 +60,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     change_email_token_lifetime_seconds = settings.change_email_token_lifetime_seconds
     chage_eamil_token_audience = "fastapi-users:change_email"
 
-    def __init__(self, user_db: UserDatabase, cache_manager: CacheManager):
+    def __init__(
+        self, user_db: UserDatabase, cache_manager: CacheManager | None = None
+    ):
         super().__init__(user_db)
         self.cache_manager = cache_manager
         self.gateway_client = GatewayClient()
@@ -250,6 +252,8 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         email: str,
     ) -> None:
         """Уведомляем о попытке регистрации на существующий email."""
+        if self.cache_manager is None:
+            raise RuntimeError("CacheManager is required")
 
         if not await self.cache_manager.acquire_cooldown(
             self._get_register_notice_key(email=email), ttl=300
