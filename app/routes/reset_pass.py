@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi_limiter.depends import RateLimiter
 from fastapi_users import exceptions, models
@@ -10,6 +12,8 @@ from app.dependencies.cache import get_cache_manager
 from app.schemas.reset_pass import EmailForgotPass, ResetPass
 from app.schemas.users import StatusResponse
 from app.services.cache import CacheManager
+
+logger = logging.getLogger("users.reset_pass")
 
 RESET_PASSWORD_RESPONSES: OpenAPIResponseType = {
     status.HTTP_400_BAD_REQUEST: {
@@ -76,6 +80,10 @@ def get_reset_password_router(
         try:
             user = await user_manager.get_by_email(email_forgot_pass.email)
         except exceptions.UserNotExists:
+            logger.warning(
+                "Незарегистрированный пользователь запросил востановление пароля: %s",
+                email,
+            )
             return StatusResponse(status="success")
 
         try:
