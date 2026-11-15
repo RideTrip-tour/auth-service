@@ -15,3 +15,8 @@ addopts = "--cov=app --cov-report=term-missing"
 
 [tool.mypy]
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["celery", "celery.*"]
+ignore_missing_imports = true
+
