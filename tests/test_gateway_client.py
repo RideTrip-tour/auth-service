@@ -35,7 +35,7 @@ async def test_create_profile(gateway_client, monkeypatch):
 
     async def fake_request(method, url, headers=None, json=None, **kwargs):
         assert method == "POST"
-        assert url.endswith("/api/profile/create")
+        assert url.endswith("/api/internal/profile/create")
         assert headers["X-User-Context"] == user_context
 
         request = httpx.Request(method, str(url))
