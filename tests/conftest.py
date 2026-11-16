@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from internal_middleware import request_id_var
 
 from app.clients.gateway_client import GatewayClient
 from app.db.models import User
@@ -135,8 +136,10 @@ def user():
     return SimpleNamespace(
         id=123,
         email="test@example.com",
+        hashed_password="old-hash",
+        is_active=False,
         deleted_at=None,
-        soft_delete=AsyncMock(),
+        soft_delete=MagicMock(),
     )
 
 
@@ -182,7 +185,7 @@ def fake_cache_manager():
 @pytest.fixture
 def gateway_client():
     client = GatewayClient()
-    yield client
+    return client
 
 
 @pytest.fixture
@@ -211,3 +214,22 @@ def refresh_token_db():
     session = AsyncMock()
     session.add = MagicMock()
     return SQLAlchemyRefreshTokenDatabase(session), session
+
+
+@pytest.fixture
+def request_id():
+    value = "test-request-id"
+    token = request_id_var.set(value)
+    yield value
+    request_id_var.reset(token)
+
+
+@pytest.fixture
+def transaction(user_manager):
+    transaction = MagicMock()
+    transaction.__aenter__ = AsyncMock()
+    transaction.__aexit__ = AsyncMock(return_value=False)
+
+    user_manager.user_db.session.begin = MagicMock(return_value=transaction)
+
+    return transaction
