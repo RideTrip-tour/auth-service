@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from celery import Celery
 from httpx import ASGITransport, AsyncClient
 from internal_middleware import request_id_var
 
@@ -22,8 +23,22 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.publishers.task_publisher import TaskPublisher
 from app.services.user_manager import UserManager
 from config import settings
+
+
+@pytest.fixture
+def celery_app():
+    return MagicMock(spec=Celery)
+
+
+@pytest.fixture
+def task_publisher(celery_app):
+    TaskPublisher._instance = None
+    publisher = TaskPublisher(celery_app)
+    yield publisher
+    TaskPublisher._instance = None
 
 
 @pytest.fixture(autouse=True)

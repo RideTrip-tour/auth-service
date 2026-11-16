@@ -1,4 +1,5 @@
 from celery import Celery
+from kombu import Exchange, Queue
 
 from config import settings
 
@@ -10,7 +11,13 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    task_queues=(
+        Queue("auth", Exchange("auth"), routing_key="auth"),
+        Queue("profile", Exchange("profile"), routing_key="profile"),
+    ),
     task_default_queue="auth",
+    task_default_exchange="auth",
+    task_default_routing_key="auth",
     task_routes={
         "auth.*": {"queue": "auth"},
         "profile.*": {"queue": "profile"},

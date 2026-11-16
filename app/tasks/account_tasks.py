@@ -7,7 +7,13 @@ from app.db.user_db import UserDatabase
 from app.services.user_manager import UserManager
 
 
-@celery_app.task(name="auth.soft_delete_account")
+@celery_app.task(
+    name="auth.soft_delete_account",
+    retry_kwargs={"max_retries": 5},
+    retry_backoff=5,
+    retry_backoff_max=300,
+    retry_jitter=True,
+)
 def soft_delete_account(user_id: int) -> None:
     asyncio.run(_soft_delete_account(user_id))
 
