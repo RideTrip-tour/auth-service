@@ -27,7 +27,7 @@ class GatewayClient(InternalClient):
 
         await self.request(
             method="POST",
-            path="/api/profile/create",
+            path="/api/internal/profile/create",
             user_context=user_context,
             request_id=request_id_var.get(),
             json={} if json is None else json,
