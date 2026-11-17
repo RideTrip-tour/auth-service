@@ -16,8 +16,8 @@ class TaskPublisher:
         return cls._instance
 
     def __init__(self, celery_app: Celery) -> None:
-        if not hasattr(self, "celery_app"):
-            self.celery_app = celery_app
+        if not hasattr(self, "_celery_app"):
+            self._celery_app = celery_app
 
     async def _publish_task(
         self,
@@ -28,7 +28,7 @@ class TaskPublisher:
     ) -> AsyncResult:
         try:
             return await asyncio.to_thread(
-                self.celery_app.send_task,
+                self._celery_app.send_task,
                 task_name,
                 args=args or [],
                 kwargs=kwargs or {},
