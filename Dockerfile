@@ -4,10 +4,8 @@ RUN apk add --no-cache \
     postgresql-client \
     redis \
     git
-     
+
 RUN addgroup -S appgroup \
-    git \
-    && addgroup -S appgroup \
     && adduser -S -G appgroup appuser
 
 WORKDIR /app
