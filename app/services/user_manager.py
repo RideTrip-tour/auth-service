@@ -1,9 +1,8 @@
 import logging
 import secrets
-from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from textwrap import dedent
-from typing import Annotated, cast
+from typing import Annotated
 from urllib.parse import urlencode
 
 import jwt
@@ -17,7 +16,6 @@ from fastapi_users import (
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from httpx_oauth.clients.google import GoogleOAuth2
 from pydantic import EmailStr, TypeAdapter
-from sqlalchemy import update as sqlalchemy_update
 
 import app.services.audit as audit_service
 from app.clients.gateway_client import GatewayClient
@@ -51,6 +49,7 @@ google_oauth_client = GoogleOAuth2(
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
+    user_db: UserDatabase
     reset_password_token_secret = SECRET
     reset_password_token_lifetime_seconds = (
         settings.reset_password_token_lifetime_seconds
@@ -595,39 +594,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             user_update.is_superuser = False
         return await super().update(user_update, user, safe, request)
 
-    async def _update_user(
-        self,
-        user: User,
-        values: dict,
-        fields: Iterable[str],
-    ) -> User | None:
-        session = getattr(self.user_db, "session", None)
-        user_table = getattr(self.user_db, "user_table", None)
-
-        if session is None or user_table is None:
-            raise RuntimeError("Atomic user update requires SQLAlchemy user DB")
-
-        try:
-            query = sqlalchemy_update(user_table).where(user_table.id == user.id)
-
-            for field in fields:
-                query = query.where(getattr(user_table, field) == getattr(user, field))
-
-            result = await session.execute(query.values(**values))
-
-            if result.rowcount != 1:
-                await session.rollback()
-                return None
-
-            await session.commit()
-            await session.refresh(user)
-
-            return user
-
-        except Exception:
-            await session.rollback()
-            raise
-
     async def change_password(
         self,
         user: User,
@@ -644,10 +610,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         await self.validate_password(new_password, user)
         new_hashed_password = self.password_helper.hash(new_password)
-
-        updated_user = await cast(
-            UserDatabase, self.user_db
-        ).compare_and_update_committed(
+        updated_user = await self.user_db.compare_and_update_committed(
             user,
             {"hashed_password": new_hashed_password},
             ("hashed_password",),
@@ -727,10 +690,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             await self._delete_expired_account(user)
 
         await self.validate_password(new_password, user)
-        user_db = cast(UserDatabase, self.user_db)
         try:
-            async with user_db.session.begin():
-                updated_user = await user_db.compare_and_update(
+            async with self.user_db.session.begin():
+                updated_user = await self.user_db.compare_and_update(
                     user,
                     {
                         "hashed_password": self.password_helper.hash(new_password),

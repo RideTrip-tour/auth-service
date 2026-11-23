@@ -162,25 +162,6 @@ async def test_send_account_deletion_email(user_manager, user):
 
 
 @pytest.mark.asyncio
-async def test_update_user_success(user_manager, user):
-    session = AsyncMock()
-    session.execute.return_value = MagicMock(rowcount=1)
-    user_manager.user_db.session = session
-
-    result = await user_manager._update_user(
-        user,
-        {"is_active": True},
-        ("is_active",),
-    )
-
-    assert result is user
-    session.execute.assert_awaited_once()
-    session.commit.assert_awaited_once()
-    session.refresh.assert_awaited_once_with(user)
-    session.rollback.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_reset_password_success(user_manager, user):
     updated_user = MagicMock()
     data = {

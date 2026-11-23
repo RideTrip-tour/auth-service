@@ -3,8 +3,9 @@ FROM python:3.12-alpine
 RUN apk add --no-cache \
     postgresql-client \
     redis \
-    git \
-    && addgroup -S appgroup \
+    git
+
+RUN addgroup -S appgroup \
     && adduser -S -G appgroup appuser
 
 WORKDIR /app

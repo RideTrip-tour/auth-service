@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable
 from typing import cast
 
@@ -7,6 +8,8 @@ from sqlalchemy import update as sqlalchemy_update
 
 from app.db.models import User
 
+logger = logging.getLogger(__name__)
+
 
 class UserDatabase(SQLAlchemyUserDatabase):
     async def compare_and_update(
@@ -15,6 +18,12 @@ class UserDatabase(SQLAlchemyUserDatabase):
         values: dict,
         fields: Iterable[str],
     ) -> User | None:
+        """
+        Атомарно обновляет поля пользователя при неизменённых исходных значениях.
+
+        Изменения применяются только в рамках текущей транзакции сессии.
+        Не вызывает session.commit(). Закоммитить их должен вызывающий код.
+        """
         if self.session is None or self.user_table is None:
             raise RuntimeError("Atomic user update requires SQLAlchemy user DB")
 
@@ -52,5 +61,6 @@ class UserDatabase(SQLAlchemyUserDatabase):
             return updated_user
 
         except Exception:
+            logger.exception("Error while updating user: %s")
             await self.session.rollback()
             raise

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 import httpx
@@ -46,18 +47,27 @@ class GatewayClient(InternalClient):
         response.raise_for_status()
         return response
 
+    def _ensure_status(self, response: httpx.Response, expected: Iterable[int]) -> None:
+        if response.status_code not in expected:
+            expected_str = ", ".join(str(code) for code in expected)
+            raise httpx.HTTPStatusError(
+                f"Expected {expected_str}, got {response.status_code}",
+                request=response.request,
+                response=response,
+            )
+
     async def create_profile(self, user, json: dict[str, Any] | None = None) -> None:
         response = await self._send_profile_request(
             user=user,
             path="/api/internal/profile/create",
             json=json,
         )
-        if response.status_code != status.HTTP_201_CREATED:
-            raise httpx.HTTPStatusError(
-                f"Expected 201, got {response.status_code}",
-                request=response.request,
-                response=response,
-            )
+        self._ensure_status(
+            response=response,
+            expected={
+                status.HTTP_201_CREATED,
+            },
+        )
 
     async def restore_profile(self, user, json: dict[str, Any] | None = None) -> None:
         response = await self._send_profile_request(
@@ -65,18 +75,24 @@ class GatewayClient(InternalClient):
             path="/api/internal/profile/me/restore",
             json=json,
         )
-        if response.status_code != status.HTTP_204_NO_CONTENT:
-            raise httpx.HTTPStatusError(
-                f"Expected 204, got {response.status_code}",
-                request=response.request,
-                response=response,
-            )
+        self._ensure_status(
+            response=response,
+            expected={
+                status.HTTP_204_NO_CONTENT,
+            },
+        )
 
     async def delete_profile_permanently(self, user) -> None:
-        await self._send_profile_request(
+        response = await self._send_profile_request(
             user,
             path="/api/internal/profile/me/permanent",
             method="DELETE",
+        )
+        self._ensure_status(
+            response=response,
+            expected={
+                status.HTTP_204_NO_CONTENT,
+            },
         )
 
     async def _create_user_context(self, user) -> str:

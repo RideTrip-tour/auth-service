@@ -81,7 +81,7 @@ async def test_delete_profile_permanently(gateway_client, monkeypatch, request_i
     user_context = "user-context"
 
     create_context_mock = AsyncMock(return_value=user_context)
-    request_mock = AsyncMock()
+    request_mock = AsyncMock(return_value=MagicMock(status_code=204))
 
     monkeypatch.setattr(gateway_client, "_create_user_context", create_context_mock)
     monkeypatch.setattr(gateway_client, "request", request_mock)
