@@ -6,7 +6,6 @@ from app.celery.base_task import AsyncDatabaseTask
 from app.celery.celery_app import celery_app
 from app.services.user_manager import UserManager
 
-
 logger = logging.getLogger(__name__)
 
 

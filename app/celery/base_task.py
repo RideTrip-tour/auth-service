@@ -8,26 +8,23 @@ from app.db.models import OAuthAccount, User
 from app.db.user_db import UserDatabase
 from app.services.user_manager import UserManager
 
-
 logger = logging.getLogger(__name__)
 
 
 class AsyncDatabaseTask(Task):
     def run(self, *args, **kwargs):
-        return asyncio.run(
-            self._execute(*args, **kwargs)
-        )
+        return asyncio.run(self._execute(*args, **kwargs))
 
     async def _execute(self, *args, **kwargs):
         async with AsyncSessionLocalCelery() as session:
             return await self.run_async(
                 UserManager(
                     UserDatabase(
-                    session,
-                    User,
-                    OAuthAccount,
+                        session,
+                        User,
+                        OAuthAccount,
+                    ),
                 ),
-            ),
                 *args,
                 **kwargs,
             )
