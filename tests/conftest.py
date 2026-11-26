@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from celery import Celery
 from httpx import ASGITransport, AsyncClient
 from internal_middleware import request_id_var
 
@@ -14,6 +15,7 @@ from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.dependencies.cache import get_cache_manager
 from app.routes.reset_pass import get_reset_password_router
+from app.tasks import account_tasks
 from tests.fakes.cache import FakeCacheManager
 
 # Делаем так, чтобы в тестах корректно импортировался пакет `app` и `config`
@@ -21,8 +23,22 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.publishers.task_publisher import TaskPublisher
 from app.services.user_manager import UserManager
 from config import settings
+
+
+@pytest.fixture
+def celery_app():
+    return MagicMock(spec=Celery)
+
+
+@pytest.fixture
+def task_publisher(celery_app):
+    TaskPublisher._instance = None
+    publisher = TaskPublisher(celery_app)
+    yield publisher
+    TaskPublisher._instance = None
 
 
 @pytest.fixture(autouse=True)
@@ -233,3 +249,20 @@ def transaction(user_manager):
     user_manager.user_db.session.begin = MagicMock(return_value=transaction)
 
     return transaction
+
+
+@pytest.fixture
+def celery_session(monkeypatch):
+    session = MagicMock()
+
+    session_context = MagicMock()
+    session_context.__aenter__ = AsyncMock(return_value=session)
+    session_context.__aexit__ = AsyncMock(return_value=False)
+
+    monkeypatch.setattr(
+        account_tasks,
+        "AsyncSessionLocal",
+        MagicMock(return_value=session_context),
+    )
+
+    return session
