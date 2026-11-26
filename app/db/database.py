@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.db.models import OAuthAccount, User
 from app.db.user_db import UserDatabase
@@ -23,6 +24,17 @@ engine = create_async_engine(
 )
 AsyncSessionLocal = async_sessionmaker(
     engine, expire_on_commit=False, class_=AsyncSession
+)
+
+engine_celery = create_async_engine(
+    db_url,
+    poolclass=NullPool,
+)
+
+AsyncSessionLocalCelery = async_sessionmaker(
+    engine_celery,
+    class_=AsyncSession,
+    expire_on_commit=False,
 )
 
 

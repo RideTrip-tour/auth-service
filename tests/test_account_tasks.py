@@ -1,50 +1,58 @@
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from celery.exceptions import Retry
+from sqlalchemy.exc import OperationalError, TimeoutError
 
-from app.tasks import account_tasks
+from app.celery.celery_app import celery_app
+from app.tasks.account_tasks import SoftDeleteAccountTask
+
+
+@pytest.fixture
+def soft_delete_account_task():
+    return SoftDeleteAccountTask()
+
+
+@pytest.fixture
+def task():
+    return celery_app.register_task(SoftDeleteAccountTask())
+
+
+@pytest.fixture
+def user_manager():
+    return AsyncMock()
 
 
 @pytest.mark.asyncio
 async def test_soft_delete_account_success(
-    monkeypatch,
+    soft_delete_account_task,
     user_manager,
-    celery_session,
+    user,
 ):
-    user = SimpleNamespace(deleted_at=None)
+    """Успешное удаление существующего пользователя."""
+    user_manager.get.return_value = user
 
-    user_manager.get = AsyncMock(return_value=user)
-    user_manager.delete_account = AsyncMock()
-
-    monkeypatch.setattr(
-        account_tasks,
-        "UserManager",
-        lambda user_db: user_manager,
+    await soft_delete_account_task.run_async(
+        user_manager=user_manager,
+        user_id=user.id,
     )
 
-    await account_tasks._soft_delete_account(user_id=123)
-
-    user_manager.get.assert_awaited_once_with(123)
+    user_manager.get.assert_awaited_once_with(user.id)
     user_manager.delete_account.assert_awaited_once_with(user)
 
 
 @pytest.mark.asyncio
 async def test_soft_delete_account_user_not_found(
-    monkeypatch,
+    soft_delete_account_task,
     user_manager,
-    celery_session,
 ):
-    user_manager.get = AsyncMock(return_value=None)
-    user_manager.delete_account = AsyncMock()
+    """Пользователь не найден — удаление не выполняется."""
+    user_manager.get.return_value = None
 
-    monkeypatch.setattr(
-        account_tasks,
-        "UserManager",
-        lambda user_db: user_manager,
+    await soft_delete_account_task.run_async(
+        user_manager=user_manager,
+        user_id=123,
     )
-
-    await account_tasks._soft_delete_account(user_id=123)
 
     user_manager.get.assert_awaited_once_with(123)
     user_manager.delete_account.assert_not_awaited()
@@ -52,36 +60,70 @@ async def test_soft_delete_account_user_not_found(
 
 @pytest.mark.asyncio
 async def test_soft_delete_account_already_deleted(
-    monkeypatch,
+    soft_delete_account_task,
     user_manager,
-    celery_session,
+    user,
 ):
-    user = SimpleNamespace(deleted_at=MagicMock())
+    """Повторное удаление уже удалённого пользователя."""
+    user.deleted_at = object()
+    user_manager.get.return_value = user
 
-    user_manager.get = AsyncMock(return_value=user)
-    user_manager.delete_account = AsyncMock()
-
-    monkeypatch.setattr(
-        account_tasks,
-        "UserManager",
-        lambda user_db: user_manager,
+    await soft_delete_account_task.run_async(
+        user_manager=user_manager,
+        user_id=user.id,
     )
 
-    await account_tasks._soft_delete_account(user_id=123)
-
-    user_manager.get.assert_awaited_once_with(123)
+    user_manager.get.assert_awaited_once_with(user.id)
     user_manager.delete_account.assert_not_awaited()
 
 
-def test_soft_delete_account_task(monkeypatch):
-    soft_delete_mock = AsyncMock()
+@pytest.mark.parametrize(
+    "error",
+    [
+        OperationalError(
+            "SELECT 1",
+            {},
+            Exception("Database connection error"),
+        ),
+        TimeoutError("Connection pool timeout"),
+    ],
+)
+def test_task_retries_on_database_errors(task, error):
+    """Временные ошибки БД приводят к автоматическому повтору."""
+    task._execute = AsyncMock(side_effect=error)
 
-    monkeypatch.setattr(
-        account_tasks,
-        "_soft_delete_account",
-        soft_delete_mock,
+    retry_mock = MagicMock(side_effect=Retry())
+    task.retry = retry_mock
+
+    with pytest.raises(Retry):
+        task.run(user_id=123)
+
+    retry_mock.assert_called_once()
+
+    retry_kwargs = retry_mock.call_args.kwargs
+
+    assert retry_kwargs["exc"] is error
+    assert "countdown" in retry_kwargs
+
+    assert task.max_retries == 5
+    assert task.autoretry_for == (
+        OperationalError,
+        TimeoutError,
     )
+    assert task.retry_backoff == 5
+    assert task.retry_backoff_max == 300
+    assert task.retry_jitter is True
 
-    account_tasks.soft_delete_account.run(user_id=123)
 
-    soft_delete_mock.assert_awaited_once_with(123)
+def test_task_does_not_retry_on_unexpected_error(task):
+    """Неожиданные ошибки не приводят к повторному запуску."""
+    error = ValueError("Unexpected error")
+    task._execute = AsyncMock(side_effect=error)
+
+    retry_mock = MagicMock()
+    task.retry = retry_mock
+
+    with pytest.raises(ValueError, match="Unexpected error"):
+        task.run(user_id=123)
+
+    retry_mock.assert_not_called()
