@@ -54,13 +54,37 @@ class UserDatabase(SQLAlchemyUserDatabase):
             updated_user = await self.compare_and_update(user, values, fields)
 
             if updated_user is None:
-                await self.session.rollback()
+                await self.rollback()
                 return None
 
-            await self.session.commit()
+            await self.commit()
             return updated_user
 
         except Exception:
-            logger.exception("Error while updating user: %s")
-            await self.session.rollback()
+            logger.exception("Error while updating user: %s", user.id)
+            await self.rollback()
             raise
+
+    async def restore_user(
+        self,
+        user: User,
+        hashed_password: str,
+    ) -> User | None:
+        async with self.session.begin_nested():
+            updated_user = await self.compare_and_update(
+                user,
+                {
+                    "hashed_password": hashed_password,
+                    "is_active": True,
+                    "deleted_at": None,
+                },
+                ("hashed_password", "deleted_at", "is_active"),
+            )
+
+            return updated_user
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()

@@ -691,21 +691,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         await self.validate_password(new_password, user)
         try:
-            async with self.user_db.session.begin():
-                updated_user = await self.user_db.compare_and_update(
-                    user,
-                    {
-                        "hashed_password": self.password_helper.hash(new_password),
-                        "is_active": True,
-                        "deleted_at": None,
-                    },
-                    ("hashed_password", "deleted_at", "is_active"),
-                )
-                if updated_user is None:
-                    raise UserUpdateFailed()
-                await self.gateway_client.restore_profile(updated_user)
-        except Exception as exc:
-            raise UserUpdateFailed() from exc
+            updated_user = await self.user_db.restore_user(
+                user=user, hashed_password=self.password_helper.hash(new_password)
+            )
+            if updated_user is None:
+                raise UserUpdateFailed()
+            await self.gateway_client.restore_profile(updated_user)
+            await self.user_db.commit()
+        except Exception:
+            await self.user_db.rollback()
+            raise
         await self.on_after_account_restore(updated_user, request)
         return updated_user
 

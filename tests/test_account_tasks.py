@@ -5,6 +5,7 @@ from celery.exceptions import Retry
 from sqlalchemy.exc import OperationalError, TimeoutError
 
 from app.celery.celery_app import celery_app
+from app.exceptions.users import UserUpdateFailed
 from app.tasks.account_tasks import SoftDeleteAccountTask
 
 
@@ -86,6 +87,7 @@ async def test_soft_delete_account_already_deleted(
             Exception("Database connection error"),
         ),
         TimeoutError("Connection pool timeout"),
+        UserUpdateFailed(),
     ],
 )
 def test_task_retries_on_database_errors(task, error):
@@ -106,10 +108,7 @@ def test_task_retries_on_database_errors(task, error):
     assert "countdown" in retry_kwargs
 
     assert task.max_retries == 5
-    assert task.autoretry_for == (
-        OperationalError,
-        TimeoutError,
-    )
+    assert task.autoretry_for == (OperationalError, TimeoutError, UserUpdateFailed)
     assert task.retry_backoff == 5
     assert task.retry_backoff_max == 300
     assert task.retry_jitter is True

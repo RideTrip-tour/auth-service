@@ -100,6 +100,9 @@ class MockUserDb:
         self.reset_pass_password = None
         self.delete_called = False
         self.delete_call_user = None
+        self.commit = AsyncMock()
+        self.rollback = AsyncMock()
+        self.restore_user_result = None
 
     async def get_by_email(self, email: str):
         self.get_by_email_calls.append(email)
@@ -139,6 +142,9 @@ class MockUserDb:
         self.reset_pass_token = token
         self.reset_pass_password = password
         return self.create_result
+
+    async def restore_user(self, user, hashed_password: str):
+        return self.restore_user_result
 
 
 @pytest.fixture

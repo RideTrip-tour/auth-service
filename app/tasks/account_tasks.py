@@ -4,6 +4,7 @@ from sqlalchemy.exc import OperationalError, TimeoutError
 
 from app.celery.base_task import AsyncDatabaseTask
 from app.celery.celery_app import celery_app
+from app.exceptions.users import UserUpdateFailed
 from app.services.user_manager import UserManager
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class SoftDeleteAccountTask(AsyncDatabaseTask):
     autoretry_for = (
         OperationalError,
         TimeoutError,
+        UserUpdateFailed,
     )
 
     max_retries = 5

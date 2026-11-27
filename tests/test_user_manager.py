@@ -6,7 +6,6 @@ import pytest
 from fastapi import HTTPException
 from fastapi_users import exceptions
 
-from app.exceptions.users import UserUpdateFailed
 from app.services.user_manager import UserManager
 
 
@@ -241,7 +240,7 @@ async def test_reset_password_restore_account(user_manager, user):
 
 
 @pytest.mark.asyncio
-async def test_restore_account_success(user_manager, user, transaction):
+async def test_restore_account_success(user_manager, user):
     user.deleted_at = datetime.now(UTC) - timedelta(days=1)
     user.hashed_password = "old-hash"
     user.is_active = False
@@ -263,11 +262,10 @@ async def test_restore_account_success(user_manager, user, transaction):
         ) as hash_mock,
         patch.object(
             user_manager.user_db,
-            "compare_and_update",
+            "restore_user",
             new_callable=AsyncMock,
             return_value=user,
-            create=True,
-        ) as update_mock,
+        ) as restore_user_mock,
         patch.object(
             user_manager.gateway_client,
             "restore_profile",
@@ -292,21 +290,17 @@ async def test_restore_account_success(user_manager, user, transaction):
     )
     hash_mock.assert_called_once_with("NewPassword123!")
 
-    update_mock.assert_awaited_once_with(
-        user,
-        {
-            "hashed_password": "new-hash",
-            "is_active": True,
-            "deleted_at": None,
-        },
-        ("hashed_password", "deleted_at", "is_active"),
+    restore_user_mock.assert_awaited_once_with(
+        user=user,
+        hashed_password="new-hash",
     )
 
     restore_profile_mock.assert_awaited_once_with(user)
-    callback_mock.assert_awaited_once_with(user, None)
 
-    transaction.__aenter__.assert_awaited_once()
-    transaction.__aexit__.assert_awaited_once_with(None, None, None)
+    user_manager.user_db.commit.assert_awaited_once()
+    user_manager.user_db.rollback.assert_not_awaited()
+
+    callback_mock.assert_awaited_once_with(user, None)
 
 
 @pytest.mark.asyncio
@@ -349,7 +343,6 @@ async def test_restore_account_expired(user_manager, user):
 async def test_restore_account_profile_error_rollbacks_auth(
     user_manager,
     user,
-    transaction,
 ):
     updated_user = MagicMock()
 
@@ -375,11 +368,11 @@ async def test_restore_account_profile_error_rollbacks_auth(
         ),
         patch.object(
             user_manager.user_db,
-            "compare_and_update",
+            "restore_user",
             new_callable=AsyncMock,
             return_value=updated_user,
             create=True,
-        ) as update_mock,
+        ) as restore_user_mock,
         patch.object(
             user_manager.gateway_client,
             "restore_profile",
@@ -391,36 +384,20 @@ async def test_restore_account_profile_error_rollbacks_auth(
             "on_after_account_restore",
             new_callable=AsyncMock,
         ) as callback_mock,
-        pytest.raises(UserUpdateFailed) as exc_info,
+        pytest.raises(RuntimeError, match="Profile service error"),
     ):
-        await user_manager._restore_account(
-            user,
-            "NewPassword123!",
-        )
+        await user_manager._restore_account(user, "NewPassword123!")
 
-    assert isinstance(exc_info.value.__cause__, RuntimeError)
-
-    update_mock.assert_awaited_once_with(
-        user,
-        {
-            "hashed_password": "new-hash",
-            "is_active": True,
-            "deleted_at": None,
-        },
-        ("hashed_password", "deleted_at", "is_active"),
+    restore_user_mock.assert_awaited_once_with(
+        user=user,
+        hashed_password="new-hash",
     )
-
     restore_profile_mock.assert_awaited_once_with(updated_user)
+
+    user_manager.user_db.commit.assert_not_awaited()
+    user_manager.user_db.rollback.assert_awaited_once()
+
     callback_mock.assert_not_awaited()
-
-    transaction.__aenter__.assert_awaited_once()
-    transaction.__aexit__.assert_awaited_once()
-
-    assert transaction.__aexit__.await_args.args[0] is RuntimeError
-    assert isinstance(
-        transaction.__aexit__.await_args.args[1],
-        RuntimeError,
-    )
 
 
 @pytest.mark.asyncio
