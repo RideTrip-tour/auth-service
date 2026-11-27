@@ -1,11 +1,12 @@
+from typing import Annotated
+
 from fastapi import Depends
-from fastapi_users.db import (
-    SQLAlchemyUserDatabase,
-)
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.db.models import OAuthAccount, User
+from app.db.user_db import UserDatabase
 from config import settings
 
 db_url = URL.create(
@@ -25,6 +26,17 @@ AsyncSessionLocal = async_sessionmaker(
     engine, expire_on_commit=False, class_=AsyncSession
 )
 
+engine_celery = create_async_engine(
+    db_url,
+    poolclass=NullPool,
+)
+
+AsyncSessionLocalCelery = async_sessionmaker(
+    engine_celery,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
 
 async def get_async_session():
     async with AsyncSessionLocal() as session:
@@ -32,4 +44,7 @@ async def get_async_session():
 
 
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
-    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)
+    yield UserDatabase(session, User, OAuthAccount)
+
+
+UserDatabaseDep = Annotated[UserDatabase, Depends(get_user_db)]

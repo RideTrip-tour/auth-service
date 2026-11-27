@@ -2,7 +2,6 @@
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-from urllib.parse import parse_qs, urlparse
 
 import jwt
 import pytest
@@ -14,6 +13,7 @@ from fastapi_users.router.common import ErrorCode
 
 import app.services.audit as audit_service
 from app.db.models import User
+from app.exceptions.users import UserUpdateFailed
 from app.routes.reset_pass import EmailForgotPass, ResetPass
 from app.schemas.users import UserCreate, UserUpdateEmail, UserUpdatePassword
 from app.services.user_manager import UserManager
@@ -54,11 +54,11 @@ async def test_forgot_password_sends_recovery_link(mock_audit_log, user_manager)
     send_email_mock.assert_awaited_once()
     recipient, subject, body = send_email_mock.await_args.args
     assert recipient == user.email
-    assert subject == "Восстановление доступа"
+    assert subject == "Восстановление доступа в «3шагадо» 🏔️"
 
-    recovery_url = urlparse(body.split("https://trip.com", 1)[1].splitlines()[0])
-    assert recovery_url.path == settings.password_recovery_path
-    assert parse_qs(recovery_url.query)["token"] == [token]
+    assert settings.password_recovery_path in body
+    assert token in body
+    assert f"https://trip.com{settings.password_recovery_path}?token={token}" in body
     assert "Ссылка действует 1 час." in body
 
     mock_audit_log.assert_awaited_once()
@@ -100,15 +100,19 @@ async def test_user_manager_change_password_returns_none_on_stale_hash(
     fake_cache_manager,
 ):
     """Если hash в БД уже изменился, смена пароля должна считаться неуспешной."""
-    execute_result = SimpleNamespace(rowcount=0)
     session = SimpleNamespace(
-        execute=AsyncMock(return_value=execute_result),
+        execute=AsyncMock(),
         rollback=AsyncMock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),
     )
-    user_db = SimpleNamespace(session=session, user_table=User)
+    user_db = SimpleNamespace(
+        session=session,
+        user_table=User,
+        compare_and_update_committed=AsyncMock(return_value=None),
+    )
     manager = UserManager(user_db, fake_cache_manager)
+
     user = SimpleNamespace(
         id=1,
         email="user@example.com",
@@ -122,24 +126,27 @@ async def test_user_manager_change_password_returns_none_on_stale_hash(
         patch.object(
             manager.password_helper,
             "verify_and_update",
-            new=MagicMock(return_value=(True, None)),
+            return_value=(True, None),
         ),
         patch.object(
-            manager.password_helper, "hash", new=MagicMock(return_value="new-hash")
+            manager.password_helper,
+            "hash",
+            return_value="new-hash",
         ),
-        patch.object(manager, "validate_password", new=AsyncMock()),
+        patch.object(manager, "validate_password", new_callable=AsyncMock),
+        pytest.raises(UserUpdateFailed),
     ):
-        result = await manager.change_password(
+        await manager.change_password(
             user,
             "oldpassword123",
             "newpassword123",
         )
 
-    assert result is None
-    session.execute.assert_awaited_once()
-    session.rollback.assert_awaited_once()
-    session.commit.assert_not_awaited()
-    session.refresh.assert_not_awaited()
+    user_db.compare_and_update_committed.assert_awaited_once_with(
+        user,
+        {"hashed_password": "new-hash"},
+        ("hashed_password",),
+    )
 
 
 @pytest.mark.asyncio

@@ -6,13 +6,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from celery import Celery
 from httpx import ASGITransport, AsyncClient
+from internal_middleware import request_id_var
 
 from app.clients.gateway_client import GatewayClient
 from app.db.models import User
 from app.db.refresh_token_database import SQLAlchemyRefreshTokenDatabase
 from app.dependencies.cache import get_cache_manager
 from app.routes.reset_pass import get_reset_password_router
+from app.tasks import account_tasks
 from tests.fakes.cache import FakeCacheManager
 
 # Делаем так, чтобы в тестах корректно импортировался пакет `app` и `config`
@@ -20,8 +23,22 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from app.publishers.task_publisher import TaskPublisher
 from app.services.user_manager import UserManager
 from config import settings
+
+
+@pytest.fixture
+def celery_app():
+    return MagicMock(spec=Celery)
+
+
+@pytest.fixture
+def task_publisher(celery_app):
+    TaskPublisher._instance = None
+    publisher = TaskPublisher(celery_app)
+    yield publisher
+    TaskPublisher._instance = None
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +100,9 @@ class MockUserDb:
         self.reset_pass_password = None
         self.delete_called = False
         self.delete_call_user = None
+        self.commit = AsyncMock()
+        self.rollback = AsyncMock()
+        self.restore_user_result = None
 
     async def get_by_email(self, email: str):
         self.get_by_email_calls.append(email)
@@ -123,6 +143,9 @@ class MockUserDb:
         self.reset_pass_password = password
         return self.create_result
 
+    async def restore_user(self, user, hashed_password: str):
+        return self.restore_user_result
+
 
 @pytest.fixture
 def mock_user_db() -> MockUserDb:
@@ -135,8 +158,10 @@ def user():
     return SimpleNamespace(
         id=123,
         email="test@example.com",
+        hashed_password="old-hash",
+        is_active=False,
         deleted_at=None,
-        soft_delete=AsyncMock(),
+        soft_delete=MagicMock(),
     )
 
 
@@ -182,7 +207,7 @@ def fake_cache_manager():
 @pytest.fixture
 def gateway_client():
     client = GatewayClient()
-    yield client
+    return client
 
 
 @pytest.fixture
@@ -211,3 +236,39 @@ def refresh_token_db():
     session = AsyncMock()
     session.add = MagicMock()
     return SQLAlchemyRefreshTokenDatabase(session), session
+
+
+@pytest.fixture
+def request_id():
+    value = "test-request-id"
+    token = request_id_var.set(value)
+    yield value
+    request_id_var.reset(token)
+
+
+@pytest.fixture
+def transaction(user_manager):
+    transaction = MagicMock()
+    transaction.__aenter__ = AsyncMock()
+    transaction.__aexit__ = AsyncMock(return_value=False)
+
+    user_manager.user_db.session.begin = MagicMock(return_value=transaction)
+
+    return transaction
+
+
+@pytest.fixture
+def celery_session(monkeypatch):
+    session = MagicMock()
+
+    session_context = MagicMock()
+    session_context.__aenter__ = AsyncMock(return_value=session)
+    session_context.__aexit__ = AsyncMock(return_value=False)
+
+    monkeypatch.setattr(
+        account_tasks,
+        "AsyncSessionLocal",
+        MagicMock(return_value=session_context),
+    )
+
+    return session

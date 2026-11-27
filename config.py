@@ -22,8 +22,26 @@ class Settings(BaseSettings):
     # =========================
     # Redis
     # =========================
-    redis_url: str = "redis://redis:6379"
-    redis_ttl: int = 300
+    redis_url: str = Field(
+        validation_alias="REDIS_URL",
+        default="redis://redis:6379/0",
+    )
+    redis_ttl: int = Field(
+        validation_alias="REDIS_TTL",
+        default=300,
+    )
+
+    # =========================
+    # Celery
+    # =========================
+    celery_broker_url: str = Field(
+        validation_alias="CELERY_BROKER_URL",
+        default="redis://redis:6379/1",
+    )
+    celery_result_backend: str = Field(
+        validation_alias="CELERY_RESULT_BACKEND",
+        default="redis://redis:6379/2",
+    )
 
     # =========================
     # Database
@@ -71,6 +89,9 @@ class Settings(BaseSettings):
     registration_token_encryption_secret: str = Field(
         validation_alias="REGISTRATION_TOKEN_ENCRYPTION_SECRET",
         default="",
+    )
+    account_restore_period_days: int = Field(
+        validation_alias="ACCOUNT_RESTORE_PERIOD_DAYS", default=14
     )
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
